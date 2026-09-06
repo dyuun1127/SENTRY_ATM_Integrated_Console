@@ -143,13 +143,13 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
         let entity = source.entities.getById(id);
         if (!entity) entity = source.entities.add({ id, name: `${track.aircraft_id} · SENTRY DEMO`,
           viewFrom: new Cesium.Cartesian3(0, -9000, 5000),
-          model: { uri: track.military ? '/models/jet.glb' : '/models/airplane.glb', minimumPixelSize: 26,
-            maximumScale: 160, scale: 1, colorBlendMode: Cesium.ColorBlendMode.MIX, colorBlendAmount: .85,
+          model: { uri: track.military ? '/models/jet.glb' : '/models/airplane.glb', minimumPixelSize: 48,
+            maximumScale: 320, scale: 1, colorBlendMode: Cesium.ColorBlendMode.MIX, colorBlendAmount: .85,
             distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 300000) },
-          point: { pixelSize: 6, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(300000, 10000000) },
+          point: { pixelSize: 10, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(300000, 10000000) },
           label: { font: '12px monospace', showBackground: true,
             backgroundColor: color('#07141bdd'), backgroundPadding: new Cesium.Cartesian2(6, 4),
-            pixelOffset: new Cesium.Cartesian2(20, -24), horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+            pixelOffset: new Cesium.Cartesian2(32, -36), horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
             distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 350000) },
         });
         ownedEntities.add(entity);
