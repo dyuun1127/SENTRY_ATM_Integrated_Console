@@ -1,0 +1,61 @@
+{
+  "snapshot_date": "2026-09-07",
+  "repositories": [
+    {
+      "directory": "sentry-gev-frontend",
+      "upstream": "https://github.com/bilawalsidhu/gods-eye-view",
+      "source_commit": "9d130479f0163cfbb29ff60d3db107928c4cc93e",
+      "copied_files": 463
+    },
+    {
+      "directory": "sentry-gev-v2",
+      "upstream": "https://github.com/dyuun1127/Sentry_ATM_V2",
+      "source_commit": "c7a11ce16c086ddfb5157b8c9938f37411c227da",
+      "copied_files": 298
+    }
+  ],
+  "excluded_files": [
+    "sentry-gev-frontend/docs/media/01-style-sweep.gif",
+    "sentry-gev-frontend/docs/media/01-voice-annotate-zilker.gif",
+    "sentry-gev-frontend/docs/media/03-austin-cctv.gif",
+    "sentry-gev-frontend/docs/media/04-airport-distance.gif",
+    "sentry-gev-frontend/docs/media/05-traffic-to-cctv.gif",
+    "sentry-gev-frontend/docs/media/06-cockpit-ar.gif",
+    "sentry-gev-frontend/docs/media/07-helicopter-loops.gif",
+    "sentry-gev-frontend/docs/media/08-boneyard.gif",
+    "sentry-gev-frontend/docs/media/08-falcon9-replay.gif",
+    "sentry-gev-frontend/docs/media/09-undersea-cables.gif",
+    "sentry-gev-frontend/docs/media/10-walking-route-flythrough.gif",
+    "sentry-gev-frontend/docs/media/12-switch-aircraft-cockpit.gif",
+    "sentry-gev-frontend/docs/media/14-iss-over-ukraine.gif",
+    "sentry-gev-frontend/docs/media/15-global-radio-layer.gif",
+    "sentry-gev-frontend/docs/media/hero-open-source-reveal.gif",
+    "sentry-gev-frontend/docs/media/open-source-survey.png",
+    "sentry-gev-frontend/docs/media/start-here/airport-ground-traffic-google-3d.gif",
+    "sentry-gev-frontend/docs/media/start-here/military-cockpit-dense-google-3d.gif",
+    "sentry-gev-frontend/docs/media/youtube-popular-videos.png",
+    "sentry-gev-frontend/src/data/fixtures/tomtom-flow-austin-12-935-1686.pbf"
+  ],
+  "notes": [
+    "Independent source snapshot; original Git histories and local runtime files are not included."
+  ],
+  "packaging_changes": [
+    "Frontend README links upstream promotional GIFs/PNGs instead of bundling them.",
+    "TomTom provider tile replaced by a deterministic synthetic MVT generator for offline tests; application runtime unchanged.",
+    "Root launchers, setup documentation and third-party notices included in one repository."
+  ],
+  "validation": {
+    "date": "2026-09-07",
+    "frontend_passed": 2767,
+    "frontend_skipped": 2,
+    "public_gateway_passed": 10,
+    "backend_passed": 1552,
+    "ruff": "passed",
+    "production_build": "passed",
+    "npm_audit": {
+      "moderate": 2,
+      "high": 9
+    },
+    "note": "Original dependency lock preserved; backend temporary-directory setup was corrected and all 12 affected cases passed on retry."
+  }
+}

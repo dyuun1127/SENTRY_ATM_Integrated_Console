@@ -1,0 +1,798 @@
+/* SENTRY 관제 보조 콘솔 — 스코프 중심.
+ *
+ * 어두운 단일 테마로 간다. 관제실 조도에서 밝은 화면은 스코프를 읽기 어렵게
+ * 만들고, 이 화면은 한 가지 조건에서만 쓰인다. 밝은 테마를 함께 만들면 두 벌을
+ * 다 손보게 되고 한쪽은 반드시 뒤처진다.
+ *
+ * 색은 의미로만 쓴다. 정상은 색이 없고, 주의·위험·비상만 색을 가진다. 배경과
+ * 지형과 공역은 전부 회청색 계열이라, 색이 보이면 그것은 판단이다. */
+
+:root {
+  color-scheme: dark;
+
+  --ink: #dfe7ee;
+  --ink-2: #9fb0be;
+  --ink-3: #6d808f;
+
+  --bg: #080c10;
+  --bg-1: #0c1218;
+  --bg-2: #111a22;
+  --line: #1d2a35;
+  --line-2: #27384a;
+
+  --scope-bg: #060a0d;
+  --msa: #6f8f5c;      /* 최저고도 차트 — 지형 계열 초록 */
+  --obstacle: #c08a3e; /* 장애물 첨두 */
+  --terrain: #0e1a16;
+  --terrain-2: #132420;
+  --airspace: #2a3f52;
+  --ring: #16242f;
+  --fix: #4a6273;
+  --runway: #b9ccd9;
+
+  --normal: #7fa8c4;
+  --caution: #e0a63a;
+  --danger: #e2564a;
+  --emerg: #d946a0;
+  --ok: #4ea882;
+
+  --mono: "SF Mono", "JetBrains Mono", "Consolas", ui-monospace, monospace;
+  --sans: "Pretendard", "Malgun Gothic", -apple-system, system-ui, sans-serif;
+
+  --r: 3px;
+
+  /* 글씨 크기 — 한 곳에서 조절한다.
+   *
+   * 예전에는 40곳 넘게 흩어진 px 값이었다. 하나를 키우면 옆의 것과 어긋나고,
+   * 화면 전체를 키우려면 전부를 손대야 했다.
+   *
+   * 관제 콘솔은 관제사가 가까이서 오래 읽는 화면이다. 처음 잡았던 크기는
+   * 정보를 많이 넣는 데 치우쳐서 실제로 읽기에 작았다. 한 단계씩 올렸다. */
+  --fs-2xs: 10px;   /* 스코프 안의 픽스·공역 이름 */
+  --fs-xs: 12px;    /* 데이터블록, 조항 이름표 */
+  --fs-sm: 13px;    /* 보조 설명, 단추 */
+  --fs-md: 14px;    /* 본문 */
+  --fs-lg: 16px;    /* 콜사인, 입력칸 */
+  --fs-xl: 19px;    /* 큰 숫자 */
+  --fs-clock: 24px; /* 시각 */
+
+  /* 스코프 안의 글자. 본문과 따로 두는 이유는, 스코프만 빔프로젝터로 크게
+     쏘기 때문이다. 옆 패널은 발표자가 코앞에서 본다. */
+  --fs-scope-label: 12px; /* 픽스·공역·거리링 이름 */
+  --fs-scope-tag: 14px;   /* 데이터블록, 충돌선 수치 */
+
+  /* 스코프 안의 선 굵기. 전부 1px 이었는데, 빔프로젝터에서는 그 굵기가
+     배경에 묻혀 사라진다. 한 곳에 모아 두어 화면을 보고 한 번에 조정한다. */
+  --sw-hair: 1.4px; /* 지형·거리링·인출선 — 배경 */
+  --sw-thin: 1.7px; /* 공역 경계, 픽스, 중심선 */
+  --sw-mid: 2.2px;  /* 항적, 속도벡터, 충돌선, 활성 체공 */
+  --sw-bold: 4px;   /* 활주로 */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- 뼈대 */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  height: 46px;
+  flex: none;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+
+.mark {
+  font-family: var(--mono);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: var(--ink);
+}
+
+.where {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-mid { display: flex; align-items: baseline; gap: 8px; }
+
+.clock {
+  font-family: var(--mono);
+  font-size: var(--fs-clock);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
+
+.clock.dim { font-size: var(--fs-lg); color: var(--ink-3); }
+.sep { color: var(--ink-3); }
+
+.bar-right { display: flex; align-items: center; gap: 8px; }
+
+.chip {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: .08em;
+  padding: 3px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.chip.alt { color: var(--ink-3); border-color: var(--line); }
+.chip.hot { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, transparent); }
+.chip.warm { color: var(--caution); border-color: color-mix(in oklab, var(--caution) 45%, transparent); }
+
+.link-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  transition: background .2s;
+}
+.link-dot.live { background: var(--ok); box-shadow: 0 0 6px color-mix(in oklab, var(--ok) 60%, transparent); }
+.link-dot.dead { background: var(--danger); }
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1px;
+  background: var(--line);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------- 스코프 */
+
+.scope-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.scope-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  flex: none;
+  flex-wrap: wrap;
+}
+
+.layers { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.layers button {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: .06em;
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.layers button:hover { color: var(--ink-2); border-color: var(--line-2); }
+.layers button[aria-pressed="true"] { color: var(--ink); border-color: var(--line-2); background: var(--bg-2); }
+.layers button:focus-visible,
+.symbols:focus-visible { outline: 2px solid var(--normal); outline-offset: 1px; }
+
+/* 기호 전환은 켜고 끄는 것이 아니라 두 방식을 오가는 것이라, 계층 토글과
+   같은 모양이되 눌린 상태를 갖지 않는다. */
+.symbols {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: .06em;
+  padding: 3px 7px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.symbols:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* 관람 모드 표시. 밖에서 연결한 사람은 조작 단추를 못 보므로, 왜 없는지를
+   화면이 말해 주어야 한다 — 없는 것과 고장난 것은 다르다. */
+.viewer {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  letter-spacing: .06em;
+  padding: 2px 7px;
+  border-radius: var(--r);
+  color: var(--bg-0);
+  background: var(--normal);
+  white-space: nowrap;
+}
+
+.scope {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 14px;
+  background: var(--scope-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+#svg { display: block; width: 100%; height: 100%; }
+
+/* 끌어서 옮길 수 있다는 것이 커서로 보여야 한다. */
+.scope { cursor: grab; touch-action: none; }
+
+.scope-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  display: flex;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.scope-legend span { display: flex; align-items: center; gap: 5px; }
+
+.sw { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.sw.normal { background: var(--normal); }
+.sw.caution { background: var(--caution); }
+.sw.danger { background: var(--danger); }
+.sw.emerg { background: var(--emerg); }
+
+.scope-scale {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+/* 스코프 안의 그림 */
+
+.terrain-land { fill: var(--terrain); stroke: var(--terrain-2); stroke-width: var(--sw-hair); }
+.terrain-coast { fill: none; stroke: var(--terrain-2); stroke-width: var(--sw-hair); }
+
+.ring { fill: none; stroke: var(--ring); stroke-width: var(--sw-hair); }
+.ring-label { fill: var(--ink-2); font-family: var(--mono); font-size: var(--fs-scope-label); opacity: .9; }
+
+.sector { fill: none; stroke: var(--airspace); stroke-width: var(--sw-thin); stroke-dasharray: 7 5; opacity: .95; }
+.sector-2 { fill: none; stroke: var(--airspace); stroke-width: var(--sw-thin); stroke-dasharray: 3 6; opacity: .7; }
+
+/* 눌러서 고를 수 있는 공역.
+ *
+ * 채움이 없는 도형은 SVG 가 **칠해진 곳에서만** 클릭을 받으므로, 1px 파선 위를
+ * 정확히 찍어야 잡힌다 — 사실상 못 누른다. 그래서 보이지 않는 굵은 선을 따로
+ * 깔아 경계 근처를 누르면 잡히게 한다.
+ *
+ * 안쪽까지 클릭을 받는 것은 작은 구역(제한구역·훈련공역·인접 관제권)뿐이다.
+ * 큰 섹터가 안쪽까지 받으면 그 위에 겹친 작은 구역을 전부 삼킨다. */
+.hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.hit.area { fill: transparent; pointer-events: all; }
+.zone-sel { stroke: var(--ink); stroke-width: 2.6px; opacity: 1; stroke-dasharray: none; }
+/* 공역은 배경이다. 채움이 진하면 항적보다 먼저 눈에 들어오고, 스코프에서
+   가장 먼저 보여야 할 것은 항적이다. 지정된 작전지역만 또렷하게 둔다. */
+.restricted { fill: color-mix(in oklab, var(--danger) 6%, transparent); stroke: color-mix(in oklab, var(--danger) 48%, transparent); stroke-width: var(--sw-thin); }
+.moa { fill: none; stroke: color-mix(in oklab, var(--caution) 40%, transparent); stroke-width: var(--sw-thin); stroke-dasharray: 8 6; }
+.moa.live { fill: color-mix(in oklab, var(--caution) 8%, transparent); stroke: color-mix(in oklab, var(--caution) 62%, transparent); stroke-dasharray: none; }
+/* 최저고도 차트 (AD 2-16). 배경이지 판정이 아니다 — 항적보다 뒤로 물린다. */
+.msa-line { fill: none; stroke: var(--msa); stroke-width: var(--sw-thin); stroke-dasharray: 9 4 2 4; opacity: .8; }
+.msa-dot { fill: var(--msa); opacity: .9; }
+.msa-alt {
+  fill: var(--msa);
+  font-family: var(--mono);
+  font-size: var(--fs-scope-tag);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.msa-cold { font-weight: 400; font-size: var(--fs-scope-label); opacity: .8; }
+.obstacle { fill: var(--obstacle); stroke: none; }
+.msa-obst {
+  fill: var(--obstacle);
+  font-family: var(--mono);
+  font-size: var(--fs-scope-label);
+  font-weight: 700;
+}
+
+.zone-label { fill: var(--ink-2); font-family: var(--mono); font-size: var(--fs-scope-label); letter-spacing: .05em; opacity: .85; }
+
+.runway-line { stroke: var(--runway); stroke-width: var(--sw-bold); stroke-linecap: square; }
+.centreline { stroke: color-mix(in oklab, var(--runway) 55%, transparent); stroke-width: var(--sw-thin); stroke-dasharray: 10 7; }
+
+.hold { fill: none; stroke: color-mix(in oklab, var(--normal) 62%, transparent); stroke-width: var(--sw-thin); stroke-dasharray: 4 4; }
+.hold.live { stroke: var(--caution); stroke-dasharray: none; stroke-width: var(--sw-mid); }
+
+.fix { fill: none; stroke: var(--fix); stroke-width: var(--sw-thin); }
+.fix-label { fill: var(--ink-2); font-family: var(--mono); font-size: var(--fs-scope-label); }
+
+.link { stroke-width: var(--sw-mid); stroke-dasharray: 5 4; }
+.link.caution { stroke: var(--caution); }
+.link.danger { stroke: var(--danger); }
+.link-label { font-family: var(--mono); font-size: var(--fs-scope-tag); font-weight: 600; }
+
+.ac { cursor: pointer; }
+/* 기본 테두리를 깔아 둔다. 등급 이름이 어긋나면 stroke 가 none 으로 남는데,
+   몸통 채움이 스코프 바탕과 같은 색이라 항적이 통째로 사라진다. 색이 틀리는
+   것보다 안 보이는 것이 훨씬 나쁘므로, 규칙이 하나도 안 맞아도 무엇인가는
+   그려지게 한다. */
+.ac-body { stroke-width: var(--sw-mid); fill: var(--scope-bg); stroke: var(--normal); }
+.ac-vec { stroke-width: var(--sw-mid); opacity: .9; }
+.ac-tag {
+  font-family: var(--mono);
+  font-size: var(--fs-scope-tag);
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.ac-tag .cs { font-weight: 700; fill: var(--ink); }
+.ac-lead { stroke: var(--ink-3); stroke-width: var(--sw-hair); }
+.ac-halo { fill: none; stroke-width: var(--sw-thin); opacity: .8; }
+
+/* 등급 이름표는 severity.css — 영문 낱말 한 벌만 쓴다. 화면에 보이는 우리말
+   이름(severity.ko)을 선택자에 쓰면 번역을 손보는 순간 색이 조용히 끊긴다. */
+.ac[data-level="normal"] .ac-body, .ac[data-level="normal"] .ac-vec { stroke: var(--normal); }
+.ac[data-level="caution"] .ac-body, .ac[data-level="caution"] .ac-vec { stroke: var(--caution); }
+.ac[data-level="danger"] .ac-body, .ac[data-level="danger"] .ac-vec { stroke: var(--danger); }
+.ac[data-level="emerg"] .ac-body, .ac[data-level="emerg"] .ac-vec { stroke: var(--emerg); }
+.ac[data-emerg="1"] .ac-body, .ac[data-emerg="1"] .ac-vec { stroke: var(--emerg); }
+.ac[data-emerg="1"] .ac-body { fill: color-mix(in oklab, var(--emerg) 22%, var(--scope-bg)); }
+.ac[data-sel="1"] .ac-tag { fill: var(--ink); }
+.ac[data-sel="1"] .ac-halo { stroke: var(--ink-2); }
+
+/* ---------------------------------------------------------------- 스코프 아래 */
+
+/* 시계를 누가 쥐는지 화면에 적어 둔다. 재생 단추가 없는 이유를 처음 보는
+   사람이 알 수 있어야 한다. */
+.scope-foot {
+  margin: 10px 14px 12px;
+  font-size: var(--fs-md);
+  color: var(--ink-3);
+}
+
+.scope-foot a { color: var(--normal); text-decoration: none; }
+.scope-foot a:hover { text-decoration: underline; }
+.scope-foot a:focus-visible { outline: 2px solid var(--normal); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- 우측 레일 */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+
+.card { background: var(--bg-1); padding: 12px 14px; }
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  /* 설명 문구를 걷어냈으므로 제목과 내용 사이 간격을 여기서 준다. */
+  margin-bottom: 10px;
+}
+
+.count {
+  font-family: var(--mono);
+  font-size: var(--fs-xl);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.count.hot { color: var(--danger); }
+.count.warm { color: var(--caution); }
+
+
+.qlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.qitem {
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--ink-3);
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.qitem:hover { border-color: var(--line-2); }
+.qitem[data-level="caution"] { border-left-color: var(--caution); }
+.qitem[data-level="danger"] { border-left-color: var(--danger); }
+.qitem[data-level="emerg"] { border-left-color: var(--emerg); }
+.qitem[data-sel="1"] { background: #16222c; }
+
+.qrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+.qcs {
+  font-family: var(--mono);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.qlevel { font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink-3); }
+.qitem[data-level="caution"] .qlevel { color: var(--caution); }
+.qitem[data-level="danger"] .qlevel { color: var(--danger); }
+.qitem[data-level="emerg"] .qlevel { color: var(--emerg); }
+
+.qwhy { margin: 3px 0 0; font-size: var(--fs-md); color: var(--ink-2); }
+
+.qmeta {
+  margin-top: 5px;
+  display: flex;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty { margin: 4px 0 0; font-size: var(--fs-md); color: var(--ink-3); }
+
+.detail { display: flex; flex-direction: column; gap: 7px; }
+
+.drow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--fs-md);
+}
+.dk { color: var(--ink-3); }
+.dv { font-family: var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.dhead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.dcs { font-family: var(--mono); font-size: var(--fs-xl); font-weight: 600; }
+
+/* 공역 상자. 항적 상자와 같은 뼈대를 쓰되, 고시 원문에서 온 비고는 줄글이라
+   따로 둔다 — 표 칸에 넣으면 줄바꿈이 어긋난다. */
+.dnote {
+  margin-top: 2px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-1);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.dsub {
+  margin-top: 2px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-1);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+}
+.dsub b { color: var(--ink-2); font-weight: 600; }
+.dlist { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+.dlist button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  padding: 3px 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+}
+.dlist button:hover { color: var(--ink); border-color: var(--ink-3); }
+.dlist button:focus-visible { outline: 2px solid var(--normal); outline-offset: 1px; }
+.dtype { font-family: var(--mono); font-size: var(--fs-md); color: var(--ink-3); }
+
+.rec { display: flex; flex-direction: column; gap: 8px; }
+
+.rec-line {
+  font-family: var(--mono);
+  font-size: var(--fs-lg);
+  color: var(--ink);
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+}
+
+.rec-why { font-size: var(--fs-md); color: var(--ink-2); margin: 0; }
+
+.clauses { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+
+.clause {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  padding: 2px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+}
+
+.meta .step-now {
+  margin: 4px 0 0;
+  font-size: var(--fs-lg);
+  color: var(--ink);
+}
+
+.meta .step-detail {
+  margin: 5px 0 0;
+  font-size: var(--fs-md);
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }
+  .rail { max-height: 44vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+.head-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+
+/* 규정 권고 — 활주로 순서·체공·복귀경로. */
+
+.adv { display: flex; flex-direction: column; gap: 4px; }
+
+.subhead {
+  margin: 8px 0 2px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.subhead:first-child { margin-top: 0; }
+
+.slots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+
+.slots li {
+  padding: 7px 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--line-2);
+  border-radius: var(--r);
+  counter-increment: slot;
+}
+.slots li[data-emerg="1"] { border-left-color: var(--emerg); }
+
+.slot-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+.slot-cs {
+  font-family: var(--mono);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.slot-cs::before {
+  content: counter(slot) ". ";
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.slot-d {
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.slot-gap {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--caution);
+}
+
+.slots { counter-reset: slot; }
+
+
+/* 관제사 판단 조작부.
+ *
+ * 이 화면의 주장은 "판단은 관제사에게" 이다. 상신과 승인이 화면에 없으면 그
+ * 주장을 보여줄 자리가 없다. 승인 단추를 눈에 띄게 두되 기본 동작으로 만들지
+ * 않는다 — 누르기 쉬운 것과 옳은 것은 다르다. */
+
+.conflict-explainability {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.why-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--fs-md);
+}
+.why-k { color: var(--ink-3); }
+.why-v { font-family: var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.why-v.bad { color: var(--danger); }
+.why-v.good { color: var(--ok); }
+
+.decision-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-note { margin: 0; font-size: var(--fs-sm); color: var(--ink-3); line-height: 1.5; }
+
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field span { font-size: var(--fs-sm); color: var(--ink-3); letter-spacing: .04em; }
+
+.field input {
+  font-family: var(--mono);
+  font-size: var(--fs-lg);
+  padding: 5px 7px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink);
+}
+.field input:focus-visible { outline: 2px solid var(--normal); outline-offset: 1px; }
+
+.actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.act {
+  font-size: var(--fs-md);
+  padding: 6px 11px;
+  flex: 1 1 auto;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.act:hover { color: var(--ink); border-color: var(--ink-3); }
+.act:focus-visible { outline: 2px solid var(--normal); outline-offset: 1px; }
+.act.ok { color: var(--ok); border-color: color-mix(in oklab, var(--ok) 45%, transparent); }
+.act.no { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 40%, transparent); }
+.act[disabled] { opacity: .4; cursor: not-allowed; }
+
+.form-msg { margin: 0; font-size: var(--fs-sm); color: var(--ink-3); min-height: 1.4em; line-height: 1.45; }
+.form-msg.bad { color: var(--danger); }
+.form-msg.good { color: var(--ok); }
+
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  color: var(--ink);
+  font-size: var(--fs-lg);
+}
+.skip-link:focus { left: 8px; top: 8px; }
+
+
+.ac-trail { fill: var(--ink-3); }
+
+
+/* 후보 비교 — 뽑힌 것과 탈락한 것을 같은 자리에 둔다. */
+
+.candidates { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; }
+
+.cand {
+  padding: 7px 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--line-2);
+  border-radius: var(--r);
+}
+.cand[data-verdict="SAFE"] { border-left-color: color-mix(in oklab, var(--ok) 60%, transparent); }
+.cand[data-verdict="UNSAFE"] { border-left-color: color-mix(in oklab, var(--danger) 60%, transparent); }
+.cand[data-pick="1"] { background: #16222c; }
+
+.cand-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+.cand-id { font-family: var(--mono); font-size: var(--fs-md); font-weight: 600; }
+
+.cand-verdict { font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink-3); }
+.cand[data-verdict="SAFE"] .cand-verdict { color: var(--ok); }
+.cand[data-verdict="UNSAFE"] .cand-verdict { color: var(--danger); }
+
+.cand-what { margin-top: 2px; font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink-2); }
+
+
+.act.next {
+  width: 100%;
+  margin-top: 9px;
+  flex: none;
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+.act.next:hover { border-color: var(--normal); }
+
+/* `hidden` 이 항상 이기게 한다.
+ *
+ * 브라우저의 `[hidden] { display: none }` 은 UA 스타일시트에 있어서, 이 파일의
+ * `.await { display: flex }` 같은 규칙에 진다. 그러면 `element.hidden = true` 로
+ * 숨긴 것이 화면에 그대로 남는다 — 실제로 「관제사 판단 대기」가 시작 화면에
+ * 떠 있었다. */
+[hidden] { display: none !important; }
+
+/* 이 화면이 무엇인지 늘 보이게 둔다.
+ *
+ * 관제 화면처럼 생긴 것을 관제 화면이 아니라고 말해 주는 것은 화면 자신뿐이다.
+ * 시연을 보는 쪽이 이것을 운용 체계로 오해하면, 뒤에 붙는 모든 설명이 실제보다
+ * 크게 들린다. */
+.poc {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: .1em;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in oklab, var(--caution) 40%, transparent);
+  border-radius: var(--r);
+  color: var(--caution);
+  white-space: nowrap;
+}

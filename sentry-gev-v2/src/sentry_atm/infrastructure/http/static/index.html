@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#080c10" />
+    <title>SENTRY ATM · 청주 관제 보조 콘솔</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">본문으로 이동</a>
+<main class="shell" id="main-content">
+  <header class="bar">
+    <div class="brand">
+      <span class="mark">SENTRY</span>
+      <span class="where" id="where">RKTU 24R · CHEONGJU GCA</span>
+    </div>
+    <div class="bar-mid">
+      <span class="clock" id="clock">00:00:00</span>
+      <span class="sep">/</span>
+      <span class="clock dim" id="duration">--:--:--</span>
+    </div>
+    <div class="bar-right">
+      <span class="chip" id="stage">READY</span>
+      <span class="chip alt" id="scenario">—</span>
+      <span class="viewer" id="viewer" hidden title="이 화면은 밖에서 연결돼 있어 읽기만 된다">관람 모드</span>
+      <span class="poc" title="RKTU 터미널 시뮬레이션 PoC — 실제 관제에 쓰지 않는다">POC · NOT FOR OPERATIONAL USE</span>
+      <span class="link-dot" id="link" title="서버 연결"></span>
+    </div>
+  </header>
+
+  <div class="body">
+    <section class="scope-wrap">
+      <div class="scope-head">
+        <h2>터미널 관제 스코프</h2>
+        <div class="head-controls">
+          <span class="range-label">범위 NM</span>
+          <div class="ranges" id="ranges" role="group" aria-label="스코프 범위"></div>
+          <div class="layers" id="layers" role="group" aria-label="표시 계층"></div>
+          <button type="button" class="symbols" id="symbols" title="항적 기호 방식을 바꾼다">심볼</button>
+        </div>
+      </div>
+
+      <div class="scope" id="scope">
+        <svg id="svg" role="img" aria-label="청주 터미널 관제 스코프">
+          <g id="g-terrain"></g>
+          <g id="g-airspace"></g>
+            <g id="g-msa"></g>
+          <g id="g-rings"></g>
+          <g id="g-runway"></g>
+          <g id="g-holds"></g>
+          <g id="g-fixes"></g>
+          <g id="g-links"></g>
+          <g id="g-traffic"></g>
+        </svg>
+        <div class="scope-legend">
+          <span><i class="sw normal"></i>정상</span>
+          <span><i class="sw caution"></i>주의</span>
+          <span><i class="sw danger"></i>위험</span>
+          <span><i class="sw emerg"></i>비상</span>
+        </div>
+        <div class="scope-scale" id="scale">—</div>
+      </div>
+
+      <p class="scope-foot">
+        <a href="/scenario" target="_blank" rel="noopener">시연 화면 열기</a>
+      </p>
+    </section>
+
+    <aside class="rail">
+      <section class="card queue">
+        <div class="card-head">
+          <h2>예외 큐</h2>
+          <span class="count" id="qcount">0</span>
+        </div>
+        <ul class="qlist" id="qlist"></ul>
+        <p class="empty" id="qempty">감시 정상 — 상신할 예외 없음</p>
+        <button type="button" class="act next" id="next" data-primary-command hidden></button>
+        <p class="form-msg" id="next-msg" role="status"></p>
+      </section>
+
+      <section class="card" id="dev-card" data-deviation-panel hidden>
+        <div class="card-head"><h2>진입 편차</h2></div>
+        <div class="detail" id="dev"></div>
+      </section>
+
+      <section class="card" id="zone-card" hidden>
+        <div class="card-head"><h2>공역</h2></div>
+        <div class="detail" id="zone"></div>
+      </section>
+
+      <section class="card" id="detail-card" hidden>
+        <div class="card-head"><h2>항적</h2></div>
+        <div class="detail" id="detail"></div>
+      </section>
+
+      <section class="card" id="rec-card" data-conflict-explainability hidden>
+        <div class="card-head"><h2>권고</h2></div>
+        <div class="rec" id="rec"></div>
+
+        <div class="conflict-explainability" id="why"></div>
+
+        <div class="candidates" id="candidates" data-candidate-panel></div>
+
+        <form class="decision-form" id="decision" data-decision-actions data-decision-form>
+          <p class="form-note">승인 전에는 어떤 기동도 적용되지 않는다.</p>
+          <label class="field">
+            <span>고도 수정 (ft)</span>
+            <input type="number" id="alt" step="100" min="1000" max="45000" inputmode="numeric">
+          </label>
+          <label class="field">
+            <span>사유</span>
+            <input type="text" id="why-text" maxlength="200" placeholder="거부·수정 시 필수">
+          </label>
+          <div class="actions">
+            <button type="button" class="act ok" id="accept">승인</button>
+            <button type="button" class="act" id="modify" data-modified-type="ALTITUDE">수정 검증</button>
+            <button type="button" class="act" id="apply-mod" data-modified-revalidation hidden>수정 적용</button>
+            <button type="button" class="act no" id="reject">거부</button>
+          </div>
+          <p class="form-msg" id="msg" role="status"></p>
+        </form>
+      </section>
+
+      <section class="card" id="adv-card" hidden>
+        <div class="card-head"><h2>관제 절차</h2></div>
+        <div class="adv" id="adv"></div>
+      </section>
+
+    </aside>
+  </div>
+</main>
+  </body>
+</html>

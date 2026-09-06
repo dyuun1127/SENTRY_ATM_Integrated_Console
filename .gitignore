@@ -1,0 +1,24 @@
+# Local runtimes and build output
+**/node_modules/
+**/.venv/
+**/venv/
+**/dist/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.gev-logs/
+**/.gev-cache/
+**/logs/
+**/*.log
+**/*.egg-info/
+# Credentials and workstation state
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/public-processes.json
+**/processes.json
+**/screenshots/
+**/.DS_Store
+**/Thumbs.db

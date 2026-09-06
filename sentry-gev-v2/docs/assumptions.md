@@ -1,0 +1,609 @@
+# SENTRY PoC Assumption Register
+
+## 1. 목적
+
+이 문서는 공식 자료로 확인된 사실, 프로젝트 설계 결정, 해커톤 PoC를 위한 가정 및 향후 검증해야 할 값을 구분한다. 가정값을 코드에 숨겨 넣지 않고 설정과 문서에서 추적 가능하게 유지하는 것이 목적이다.
+
+## 2. 상태 정의
+
+| 상태 | 의미 |
+|---|---|
+| `SOURCE_VERIFIED` | 제공된 공식 또는 공개 자료에서 확인함 |
+| `PROJECT_DECISION` | 프로젝트 범위를 위해 명시적으로 결정함 |
+| `POC_ASSUMPTION` | 해커톤 시뮬레이션을 위해 채택한 비공식 가정 |
+| `PROVISIONAL` | 후속 계산 또는 자료 검증에 따라 조정할 값 |
+| `DEFERRED` | MVP 이후에 검증하거나 구현할 항목 |
+
+## 3. 근거 우선순위
+
+충돌하는 정보가 있을 때 다음 순서로 판단한다.
+
+1. 적용 시점이 확인된 공식 AIP, 법령 및 항공교통관제절차
+2. 프로젝트에 제공된 공식 과제 기술서
+3. 공개 연구자료와 검증 가능한 공개 성능자료
+4. 프로젝트 설정값과 Scenario Contract
+5. 데모 편의를 위한 임의값
+
+공식 자료가 갱신되면 문서의 적용일과 변경 내용을 먼저 확인한 뒤 반영한다.
+
+## 4. Assumption 목록
+
+### ASM-001 - 시스템 목적
+
+- 상태: `PROJECT_DECISION`
+- 내용: SENTRY는 자율 관제 시스템이 아니라 관제사 의사결정 지원 시스템이다.
+- 영향: 모든 Recommendation에는 관제사의 Accept, Modify 또는 Reject가 필요하다.
+- 검증: `SC-008` 및 Controller Decision 통합 테스트
+
+### ASM-002 - 공간적 범위
+
+- 상태: `PROJECT_DECISION`
+- 내용: PoC는 RKTU 중심 Terminal Simulation Area 하나만 다룬다.
+- 주의: 이 명칭과 경계는 실제 공식 TMA, CTR 또는 특정 기관의 책임공역을 의미하지 않는다.
+- 검증: Architecture 및 UI 용어 검토
+
+### ASM-003 - RKTU 좌표 원점
+
+- 상태: `SOURCE_VERIFIED`
+- 내용: RKTU ARP `36°42'59\"N, 127°29'57\"E`를 local x/y 좌표의 원점으로 사용한다.
+- 출처: 제공된 `자료/RKTU-TEXT.pdf`, RKTU AD 2.2
+- 영향: East는 +x, North는 +y다.
+- 검증: Phase 1 좌표 원점 테스트
+
+### ASM-004 - Simulation Area 계산 경계
+
+- 상태: `PROVISIONAL`
+- 내용: 최초 계산 Envelope는 RKTU ARP 반경 30 NM, 고도 0~20,000 ft로 둔다.
+- 주의: 레이더 통달범위나 실제 공역 경계라고 설명하지 않는다.
+- 검증: RKTU 절차와 대표 항적을 배치한 뒤 Phase 1 이전 또는 중에 조정
+
+### ASM-005 - 관제 조직 추상화
+
+- 상태: `PROJECT_DECISION`
+- 내용: PoC에서는 하나의 가상 `Terminal Radar Controller`가 Simulation Area Traffic을 담당한다.
+- 주의: 실제 Jungwon APP, Cheongju GCA, Tower 또는 ACC의 운영 책임을 재현한다고 주장하지 않는다.
+- 검증: Scenario 및 UI 명칭 검토
+
+### ASM-006 - MCRC 역할
+
+- 상태: `PROJECT_DECISION`
+- 내용: MCRC는 Golden Demo의 항공교통관제 의사결정자가 아니다.
+- 이유: 작전 통제와 항공교통관제의 책임을 혼동하지 않기 위함이다.
+- 검증: 발표자료와 UI에서 MCRC 명령 기능이 없는지 확인
+
+### ASM-007 - Tower 경계
+
+- 상태: `PROJECT_DECISION`
+- 내용: Golden Demo는 최종접근 안정화와 Tower 이양 준비까지 다루며 실제 착륙, 활주로 점유 및 지상 이동은 다루지 않는다.
+- 검증: Scenario 종료 조건 확인
+
+### ASM-008 - 시간 정책
+
+- 상태: `PROJECT_DECISION`
+- 내용: 내부 저장과 데이터 교환은 timezone-aware UTC를 사용하고 화면에서 KST로 변환한다.
+- 금지: timezone 정보가 없는 naive datetime을 Domain Model에서 허용하지 않는다.
+- 검증: Phase 0 시간 정책 테스트
+
+### ASM-009 - 내부 단위
+
+- 상태: `PROJECT_DECISION`
+- 내용: 거리 NM, 고도 ft, 수평속도 kt, 수직속도 ft/min, Heading degree를 사용한다.
+- Heading: 0도 North, 90도 East, 180도 South, 270도 West
+- 검증: Phase 0 Domain 유효성 검사 및 Phase 1 Geometry 테스트
+
+### ASM-010 - Golden Demo 데이터 Source
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 재현 가능한 초기 Golden Demo의 모든 항공기는 `SYNTHETIC`으로 생성한다.
+- 이유: 실제 군 레이더 항적은 확보와 공개가 어렵고 데모 결과를 결정론적으로 재현해야 한다.
+- 검증: 모든 Golden Demo Aircraft의 `source` 값 확인
+
+### ASM-011 - OpenSky 데이터 정책
+
+- 상태: `DEFERRED`
+- 내용: 민항기 Playback은 후속 Phase에서 OpenSky Historical State Vector를 사용할 수 있다.
+- 정책: Raw 데이터는 수정하지 않고 `raw -> processed -> scenario` 방향으로만 변환한다.
+- 검증: Data Adapter 구현 시 Raw checksum 및 Source 표시 확인
+
+### ASM-012 - 군용기 성능 표현
+
+- 상태: `PROJECT_DECISION`
+- 내용: 실제 군 기종 대신 `FAST_JET`, `TRANSPORT`, `AIRLINER` 성능 등급을 사용한다.
+- 금지: 비공개 또는 민감한 실제 군용기 성능값 사용
+- 검증: Performance 설정에 출처 또는 `SIMULATION_ASSUMPTION` 표시
+
+### ASM-013 - Synthetic 성능값
+
+- 상태: `PROVISIONAL`
+- 내용: 초기 Reference Seed는 실제 기종이 아닌 세 가지 Synthetic Category Envelope를 사용한다.
+- 출처 표기: 모든 값은 `SIMULATION_ASSUMPTION` 및
+  `ASM-013:SENTRY_POC_CATEGORY_ENVELOPE_V1`으로 저장한다.
+- 주의: 아래 값은 실제 항공기 성능, BADA 성능 또는 공식 운용한계가 아니다.
+
+| Profile | 속도 kt (min/max) | 상승/강하 ft/min | 선회 deg/s | 고도상한 ft |
+|---|---:|---:|---:|---:|
+| `AIRLINER-POC-V1` | 130 / 350 | 2,500 / 3,000 | 3.0 | 39,000 |
+| `FAST-JET-POC-V1` | 160 / 480 | 6,000 / 6,000 | 6.0 | 50,000 |
+| `TRANSPORT-POC-V1` | 110 / 320 | 2,000 / 2,500 | 3.0 | 35,000 |
+
+- 검증: Predictor/Scenario 통합 시 도달 가능성과 데모 안정성을 측정한 뒤 값과 버전을 조정한다.
+
+### ASM-014 - 대상 비행체
+
+- 상태: `PROJECT_DECISION`
+- 내용: MVP는 AIRLINER, FAST_JET, TRANSPORT만 다루고 소형 드론과 헬기는 제외한다.
+- 이유: 소형 비행체의 식별, 성능 및 적용 관제절차는 별도 문제다.
+- 검증: Scenario Aircraft Category 목록 확인
+
+### ASM-015 - Golden Demo Traffic 수
+
+- 상태: `POC_ASSUMPTION`
+- 내용: Golden Demo에는 8대의 항공기를 배치한다.
+- 이유: 혼합 교통과 2차 충돌을 보여주면서 화면 가독성과 구현 범위를 유지하기 위함이다.
+- 검증: Scenario Builder 테스트
+
+### ASM-016 - Prediction Horizon
+
+- 상태: `POC_ASSUMPTION`
+- 내용: Baseline Predictor는 30, 60, 120초 Horizon을 우선 지원한다.
+- Phase 6-B 결정: CPA/TCPA 계산기의 기본 연속시간 Look-ahead를 최대 예측 Horizon과 같은
+  120초로 두며 생성자에서 교체할 수 있게 한다.
+- 주의: 예선 기획서의 10분 Look-ahead는 장기 확장 KPI이며 초기 완료조건이 아니다.
+- 검증: Phase 4 Predictor 테스트
+
+### ASM-017 - Simulation Tick과 Rolling Prediction 주기
+
+- 상태: `PROVISIONAL`
+- 내용: Simulation Tick은 1초, Prediction 갱신은 5초를 기본값으로 사용한다.
+- Phase 2-A 결정: Simulation Clock의 기본 Tick을 1초로 적용하고 명시적인 Tick 방식의 재현성을 테스트한다.
+- Phase 4-C 결정: 5초 Simulation Time 구간당 최대 1회 실행하며 Pause·Reset·큰 Tick 이동의
+  결정론적 동작을 테스트한다.
+- Phase 6-D 결정: Conflict Assessment도 같은 기본 5초 구간을 사용하되 별도 Scheduler로
+  실행하며 Prediction Scheduler나 Simulation Engine에 결합하지 않는다.
+- 남은 검증: Golden Demo 통합 성능을 측정한 뒤 5초 주기의 최종 유지 여부를 확정한다.
+
+### ASM-018 - PoC Alert Threshold Profile
+
+- 상태: `PROVISIONAL`
+- 내용: 초기 `POC_TERMINAL_V1` Profile은 수평 5 NM, 수직 1,000 ft를 Alert 계산의 시작값으로 검토한다.
+- 주의: 모든 상황에 적용되는 공식 관제 분리기준으로 표현하거나 하드코딩하지 않는다.
+- 설계: 공역, 비행방식, 운항조건에 따라 교체 가능한 Rule Profile이어야 한다.
+- Phase 6-A 결정: `POC_TERMINAL_V1`을 주입 가능한 `SeparationRuleProfile` 객체로 정의한다.
+  수평·수직 값이 동시에 각 기준보다 작은 경우만 `PREDICTED`로 분류하며 경계값은 `SAFE`다.
+- Phase 6-C 결정: 전체 Pair에 Phase 6-B의 동일시각 CPA 분리를 적용하고 Rule Profile로 분류한다.
+  모든 Assessment를 보존하되 실제 탐지 목록에는 `PREDICTED`만 포함한다.
+- **변경 (2026-09-06) — 규정 프로파일이 기본값을 대체했다.**
+  - 변경 전: `POC_TERMINAL_V1` 수평 5 NM / 수직 1,000 ft
+  - 변경 후: 규정 프로파일 수평 3 NM / 수직 1,000 ft
+  - 근거: 「항공교통관제절차」 국토교통부고시 제2022-534호 5-5-4 가, 4-5-1
+  - 영향: `regulation/policy.active_separation_profile()` 이 활성 프로파일을 한 곳에서
+    정하고 탐지기·위험평가기·세션 읽기모델이 모두 그것을 따른다. 규정 프로파일은 값
+    하나를 고정하지 않고 **쌍별로** 판정하며 조항에 붙은 조건까지 본다.
+    `POC_TERMINAL_V1` 은 삭제하지 않았고 생성자로 주입하면 그대로 동작한다.
+  - 남은 것: 규정 프로파일도 **공식 인증을 받은 관제 판정이 아니다.** 전사값의
+    정합성은 `tools/validate_aip.py` 가 67건을 대조해 확인한다.
+  - 문서: [`regulation.md`](regulation.md), [`conflict.md`](conflict.md)
+
+### ASM-019 - TCAS/ACAS 활용 범위
+
+- 상태: `PROJECT_DECISION`
+- 내용: TCAS/ACAS 개념과 경보시간은 평가 참고자료로 사용할 수 있지만 지상 관제용 Conflict Detector와 동일한 시스템으로 간주하지 않는다.
+- 검증: 기술 문서의 용어 검토
+
+### ASM-020 - Sector Entry Conformance
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 관제 이양 전체를 구현하지 않고 `Expected Entry State`와 `Actual Entry State`를 비교한다.
+- 비교값: 진입 지점, 고도, Heading, 예상 시각
+- Phase 5-B 결정: T+60 이벤트를 불변 `EntryConformanceDeviationPayload`로 정의하고,
+  Clock 기반 Timeline이 1회 방출한다. Runtime 반영은 후속 단계에서 수행한다.
+- Phase 6-E 결정: Golden Scenario Definition의 같은 T+60 State Anchor가 실제 진입 상태를
+  제공한다. Timeline 방출은 여전히 Runtime을 직접 변경하지 않는다.
+- 검증: `ENTRY_CONFORMANCE_DEVIATION` Scenario 테스트
+
+### ASM-021 - Golden Demo 진입 지점 명칭
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 최초 시나리오의 `ENTRY-A`와 `FINAL-GATE`는 Synthetic 지점이다.
+- 주의: 공식 Fix, STAR 또는 Approach Procedure로 표현하지 않는다.
+- 검증: AIP 절차 디지털화 단계에서 공식 지점으로 교체 여부 결정
+
+### ASM-022 - 시나리오 수치
+
+- 상태: `CALIBRATED_POC_ASSUMPTION`
+- 내용: `MIL-F01`의 기대 9,000 ft, 실제 7,400 ft, 2.1 NM 이탈, 25초 지연 및 예상 최소 분리값은 Golden Demo 목표값이다.
+- 정책: Phase 4와 Phase 6에서 실제 운동학 계산으로 재현되도록 초기 상태를 조정한다.
+- Phase 5-A 결정: `docs/scenarios.md` 7.1의 8대 초기 State를 결정론적 Foundation으로 사용한다.
+- Phase 5-B 결정: T+60 진입 불일치와 T+240 비상 선언을 절대 UTC 시각의 타입화된 이벤트로
+  Scenario Definition에 포함한다. 이벤트 방출만으로 Aircraft State를 변경하지 않는다.
+- Phase 6-E 결정: `MIL-F01`의 계획 초기 State와 T+60 실제 State Anchor를 보정했다. 기존
+  CPA/Pairwise/Rolling 계산 결과 T+0은 0건, T+60은 TCPA 100초, T+70은 TCPA 90초이며 두
+  평가 모두 CPA 수평 2.3 NM·수직 500 ft로 `CIV-A02`/`MIL-F01` 한 Pair만 탐지한다. 현재
+  수평분리는 T+60 약 6.16 NM, T+70 약 5.63 NM로 분리기준 밖이다. `MIL-T02` 초기 위치는
+  보정된 계획 궤적과의 무관한 초기 Conflict 및 Medium Risk를 피하도록 -1/18 NM로 조정했다.
+- Phase 9-E 결정: 기존 1차 CPA와 T+0/T+60 탐지 건수를 유지하면서 `CIV-A02` 초기 고도를
+  9,075 ft, T+60 `MIL-F01` 수직속도를 +185 ft/min으로 보정했다. `MIL-F02`는 초기
+  -11.3194/20.3194 NM·6,946.25 ft, +400 ft/min으로 조정해 CAND-B의 우측 20도 기동에서만
+  `MIL-F01`과 계산된 2차 Conflict를 만들고 CAND-A는 안전하게 유지한다.
+- 금지: 목표 Conflict 결과를 코드에 하드코딩하는 것
+- 검증: Golden Demo 통합 테스트
+
+### ASM-023 - Risk와 Priority 분리
+
+- 상태: `PROJECT_DECISION`
+- 내용: Conflict Risk와 운항 Priority는 서로 다른 평가 결과다.
+- 예시: `MIL-T01`은 현재 Conflict Risk가 낮아도 Emergency Priority가 가장 높을 수 있다.
+- Phase 7-A 결정: Risk는 `ConflictPair`, Priority는 개별 Aircraft를 대상으로 별도 Assessment ID,
+  Score, Level, Reason Code와 Policy Profile ID를 보존한다. 두 Score를 하나로 합치지 않는다.
+- 검증: Phase 7 단위 테스트
+
+### ASM-024 - Risk Level
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 초기 Risk Level은 `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` 네 단계로 표현한다.
+- Phase 7-A 결정: `POC_RISK_V1` 시작값은 Critical TCPA 30초, High TCPA 120초 및 Medium
+  수평·수직 비율 1.25다. LOW/MEDIUM/HIGH/CRITICAL Score는 0/40/75/100이며 실제 Level
+  판정은 Phase 7-B에서 구현한다.
+- Phase 7-B 결정: `PREDICTED` TCPA 0~30초는 `CRITICAL`, 30초 초과~120초는 `HIGH`, 그보다
+  길면 `MEDIUM`이다. `SAFE`이면서 수평·수직 비율이 모두 1.25 미만이면 `MEDIUM`, 나머지는
+  `LOW`다. Event Status는 적용 Separation Rule로 다시 검증한다.
+- 주의: 공식적이거나 보편적인 Risk 기준이 아닌 Golden Demo용 잠정 입력이다.
+- 검증: Phase 7 Risk Evaluator 및 Golden Demo 테스트
+
+### ASM-025 - 비상상황 추상화
+
+- 상태: `PROJECT_DECISION`
+- 내용: 비상은 `PRIORITY_RETURN`과 일반적인 `AIRCRAFT_CONDITION`으로 표현한다.
+- Phase 5-B 결정: `EmergencyDeclaredPayload`에서 비상 유형과 사유 범주를 별도 Enum으로
+  보존하고 T+240에 1회 방출한다.
+- 금지: 실제 작전, 실제 기체 결함 또는 민감한 비상절차를 모사하는 것
+- 검증: Scenario Event Payload 확인
+
+### ASM-026 - 비상 항공기 처리 원칙
+
+- 상태: `PROJECT_DECISION`
+- 내용: 비상 항공기는 Priority가 가장 높지만 검증 없이 무조건 첫 순서 또는 직선 경로를 부여하지 않는다.
+- 고려값: 현재 비행단계, 주변 Traffic, 2차 충돌, 최저고도 및 후보 실행 가능성
+- 검증: `SC-010`부터 `SC-012`까지의 통합 테스트
+
+### ASM-027 - Candidate Primitive
+
+- 상태: `PROJECT_DECISION`
+- 내용: 초기 후보는 Heading, Altitude, Speed, Entry Delay 및 Sequence Change로 제한한다.
+- Phase 9-A 결정: 각 Primitive는 절대 목표값을 가진 별도 타입으로 표현하고 Primary Objective를
+  고정한다. `NO_ACTION`은 실행 후보가 아닌 전후 비교 기준선으로 Batch마다 정확히 한 개 둔다.
+  예상 비용은 지연 sec, 경로 연장 NM와 0~100 PoC Score로 표현하며 정밀 연료/운항비용으로 해석하지
+  않는다.
+- Phase 9-B 결정: `POC_RESOLUTION_V1`은 우측 20도, 고도 1,000 ft, 속도 30 kt, Entry Delay
+  30초와 Sequence Position 1을 생성 입력으로 사용한다. Golden Template의 Cost Score는 A=10,
+  B=25, C=20, D=30이고 B의 Path Extension은 1.5 NM, C의 Delay는 30초인 잠정 비교값이다.
+  Callsign이나 군/민 Category가 아니라 명시적인 Preferred Target과 Pair 역할로 Template 대상을 정한다.
+- 제외: 자유형 3D 경로 생성과 강화학습 기반 명령
+- 검증: Phase 9 Candidate Domain 및 Generator 테스트
+
+### ASM-028 - Controller 승인 전 상태 불변
+
+- 상태: `PROJECT_DECISION`
+- 내용: Recommendation 생성만으로 Actual Aircraft Runtime을 변경하지 않는다.
+- Phase 9-C 결정: Safety Validation은 Candidate별 복제 State의 결과만 기록한다. SAFE는 1차 Conflict
+  해소와 실패 없음, INEFFECTIVE는 Action의 1차 Conflict만 지속, UNSAFE는 2차 Conflict·성능·Rule
+  실패 또는 Conflict가 남은 NO_ACTION 기준선으로 정의한다.
+- 검증: 승인 전후 State Snapshot 비교
+
+### ASM-029 - UI 형태
+
+- 상태: `PROJECT_DECISION`
+- 내용: 주 화면은 2D Radar Display와 Exception Queue이며, Vertical Profile과 Recommendation Panel을 보조로 둔다.
+- 주의: 3D 지도는 선택적 보조 시각화이며 필수 MVP가 아니다.
+- 검증: Phase 12 UI Acceptance Test
+
+### ASM-030 - 공식 공역 및 절차 자료
+
+- 상태: `DEFERRED`
+- 내용: 제공된 RKTU AIP, SID, STAR, Approach 및 ATC Surveillance Minimum Altitude Chart는 향후 Airspace/Rule 입력으로 사용할 수 있다.
+- 주의: PDF를 직접 계산에 사용하지 않고 검증된 구조화 데이터로 변환해야 한다.
+- 검증: Source, 적용일, 좌표 및 고도 제약을 이중 확인한 뒤 반영
+
+### ASM-031 - 평가 방식
+
+- 상태: `PROJECT_DECISION`
+- 내용: 화면 동작만으로 성공을 판단하지 않고 결정론적 Scenario Test와 반복 Simulation으로 평가한다.
+- 기본 지표: 예측 오차, Conflict Lead Time, 탐지 결과, 회피 성공률, 2차 충돌, 추가 지연
+- 검증: Phase 5, Phase 6 및 Phase 10 평가 코드
+
+### ASM-032 - 반복 실험 횟수
+
+- 상태: `PROVISIONAL`
+- 내용: 확률 또는 초기조건 변화 실험은 최소 30회로 시작하고 계산비용이 허용되면 300회까지 확장한다.
+- 주의: 반복 횟수와 신뢰구간 없이 성공률만 보고하지 않는다.
+- 검증: Evaluation 설계 단계에서 확정
+
+### ASM-033 - 보안 및 개인정보
+
+- 상태: `PROJECT_DECISION`
+- 내용: 실제 군 레이더 항적, 실제 군 Callsign, 개인 식별정보, API Key 및 인증정보를 저장소에 포함하지 않는다.
+- 검증: Commit 전 staged diff와 Secret Scan 확인
+
+### ASM-034 - 좌표 변환 지구 모델
+
+- 상태: `POC_ASSUMPTION`
+- 내용: Phase 1의 RKTU Local Tangent Plane은 평균 지구 반지름 3,440.065 NM인 구면 지구 모델을 사용한다.
+- 이유: 외부 측지 라이브러리 없이 Terminal 범위의 결정론적 좌표 변환과 역변환을 제공하기 위함이다.
+- 주의: WGS84 타원체 기반 공식 측지 변환이나 실제 감시체계 좌표변환을 대체하지 않는다.
+- 검증: 원점, 축 방향, 30 NM Envelope 왕복 변환 테스트
+- **변경 (2026-09-06) — 구면에서 WGS84 곡률반경으로.**
+  - 변경 전: 평균 지구 반지름 3,440.065 NM 구면
+  - 변경 후: 원점 위도의 WGS84 자오선·묘유선 곡률반경
+  - 근거: 36.7°N 에서 두 곡률반경(6,358 / 6,386 km)이 평균 반지름을 사이에 두고
+    갈리므로 축척오차가 0.23% 생긴다.
+  - 영향: 5 NM 떨어진 쌍에서 22 m 오차였고 **방향이 나빴다** — 평면이 실제보다
+    더 멀다고 보고했으므로, 3 NM 최저치라고 부른 쌍은 이미 그 안에 있었다.
+    바꾼 뒤 최악 쌍 거리 오차 **1.9 m**. 레이더 정확도보다 훨씬 아래지만 편향이
+    계통적이고 안전하지 않은 방향이라 상쇄되지 않으며, 이 평면은 국지 x/y 와
+    규정 계층의 AIP 전사 좌표를 잇는 다리다.
+  - `MEAN_EARTH_RADIUS_NM` 상수는 구면 근사로 충분한 곳에만 남겼다.
+  - 검증: `tests/unit/regulation/test_geo.py` 실측
+
+### ASM-035 - Operational Priority Level
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 초기 Level은 `ROUTINE`, `ATTENTION`, `URGENT`, `EMERGENCY`로 표현한다.
+- Phase 7-A 결정: `POC_OPERATIONAL_PRIORITY_V1`에서 정상 운항은 0/`ROUTINE`, 진입 조건
+  불일치는 40/`ATTENTION`, 비상 선언은 100/`EMERGENCY`로 매핑한다. `URGENT`는 후속 검증된
+  비상 외 운항 규칙을 위해 예약한다.
+- Phase 7-B 결정: 평가시각까지 발생한 대상 Aircraft의 Event만 적용하고, 비상 선언이 진입 이탈보다
+  높은 Level을 사용한다. Conflict Risk는 Priority 입력에 포함하지 않는다.
+- 금지: 군용 Category 자체를 Priority 상승 조건으로 사용하는 것
+- 검증: Phase 7 Priority Evaluator 및 `VAL-EMERGENCY-PRIORITY`
+
+### ASM-036 - Exception Queue 교차 타입 순서
+
+- 상태: `POC_ASSUMPTION`
+- 내용: 초기 Queue Rank는 Emergency Priority, Critical Risk, Urgent Priority, High Risk,
+  Attention Priority, Medium Risk, Routine Priority, Low Risk 순서다.
+- Phase 8-A 결정: Resolved 여부, 교차 타입 Rank, Acknowledge 여부, TCPA 오름차순, Score 내림차순,
+  Exception ID 사전순으로 전체 정렬 키를 구성한다.
+- Phase 8-B 결정: LOW/ROUTINE은 새 항목에서 제외하고, 기존 항목은 같은 Subject의 명시적인
+  LOW/ROUTINE 평가가 도착할 때만 해결한다. 누락은 해결로 추정하지 않으며 해결 후 재상승은 새
+  Open 시각으로 재개한다. 확인 상태는 활성 평가가 계속되는 동안 보존한다.
+- 주의: 관제사 화면의 잠정 표시 순서이며 자동 항공기 기동 또는 공식 관제 우선순위를 의미하지 않는다.
+- 검증: 입력 순서 변경, 동일 등급 TCPA, Stable ID, Lifecycle 및 Golden T+0/T+70/T+240 Queue 테스트
+
+### ASM-037 - 격리 Candidate 검증 입력
+
+- 상태: `PROVISIONAL`
+- 내용: Phase 9-D의 `POC_SAFETY_V1`은 120초 재평가 Horizon, 60초 명령 실행시간, 한 Candidate의
+  최대 속도 변화 50 kt와 Altitude Candidate 목표에만 적용하는 7,500 ft 잠정 최저고도를 사용한다.
+- 적용 모델: Heading·Altitude·Speed는 격리 State의 목표값을 즉시 교체하고, Entry Delay는 현재
+  운동량만큼 State를 뒤로 이동한다. Sequence Change는 아직 운동학적 State를 변경하지 않는다.
+- 주의: 7,500 ft는 공식 최저안전고도 또는 모든 현재 Traffic에 적용되는 규칙이 아니다. 구조화·검증된
+  공식 공역 및 절차 Rule이 준비되면 Profile을 교체해야 한다 (`ASM-030`).
+- 적용 범위 (판단 연쇄 일반화 시 추가): **이미 이 고도 아래에 있는 항공기에는 바닥으로 적용하지
+  않는다.** 최종접근 중인 항공기는 공고된 절차를 따라 합법적으로 그 아래에 있고, 거기에 7,500 ft를
+  들이대면 아무것도 지키지 못한 채 모든 Candidate가 막힌다 — 실제로 13단계 소티에서 그렇게 되어
+  상신할 수 있는 안이 하나도 남지 않았다. 그 구간에서는 **현재고도보다 더 내려가지 않을 것**만
+  요구한다. 잠정 기준으로 말할 수 있는 것은 "이 기동이 상황을 더 나쁘게 만들지 않는다" 까지이며,
+  그 이상을 말하려면 최저벡터고도 같은 공식 자료가 있어야 한다. 전사 자료의 `terrain.json`은
+  표출 전용(해안선·육지 윤곽)이라 고도가 없어 지형 기반 최저고도를 도출할 수 없다.
+- 검증: Phase 9-D Performance, Rule, 1차·2차 Conflict 및 원본 State 불변 테스트
+
+### ASM-038 - 추천 가능성 및 관제사 경계
+
+- 상태: `PROJECT_DECISION`
+- 내용: Recommendation은 `SAFE`로 검증된 Action Candidate만 포함한다. `UNSAFE`, `INEFFECTIVE`와
+  `NO_ACTION` 기준선은 추천할 수 없다.
+- Phase 10-A 결정: 안전 후보가 있으면 `AVAILABLE`, 없으면 빈 `NO_SAFE_CANDIDATE` 결과를 만든다.
+  추천에는 1차 Conflict 해소, 2차 Conflict 없음, 성능 가능 및 Rule 위반 없음의 긍정 근거를 모두
+  보존한다.
+- Phase 10-B 결정: `POC_RECOMMENDATION_V1`은 SAFE Action Candidate를 Cost Score, Delay,
+  Path Extension, Candidate ID 오름차순으로 정렬하고 최대 3개를 표시한다. 가중 합산 점수나
+  Callsign·군/민 Category 우대는 사용하지 않는다.
+- Phase 10-C 결정: Read API는 Domain을 직접 노출하지 않고 고정 Maneuver 필드, Cost와 Safety
+  Evidence를 JSON 호환 DTO로 변환한다. 조회 API에는 Accept/Modify/Reject 부작용을 포함하지 않는다.
+- Phase 10-D 결정: `GET /api/v1/recommendations/current`만 제공하며 결과 없음은 204로 표현한다.
+  모든 응답은 `Cache-Control: no-store`이고 Query나 다른 HTTP Method로 결정을 변경할 수 없다.
+- Human-in-the-loop: Recommendation 생성은 Accept/Modify/Reject가 아니며 Aircraft Runtime을
+  변경하지 않는다. 관제사 결정과 승인된 기동 적용은 별도 Domain/Application 단계다.
+- 검증: Phase 10 Recommendation Domain 및 Ranking Service 테스트
+
+### ASM-039 - Controller Decision Audit 경계
+
+- 상태: `PROJECT_DECISION`
+- 내용: `ACCEPT`만 원본 SAFE Candidate의 후속 적용을 허가한다. `MODIFY`는 Rationale과 실제로
+  달라진 Action Maneuver를 기록하고 반드시 재검증하며, `REJECT`는 Rationale을 남기고 적용하지 않는다.
+- Audit: Recommendation Set마다 최대 하나의 최종 Decision을 허용하고 Decision/Recommendation
+  Identity, UTC, 비개인 Controller Position ID를 보존한다.
+- Human-in-the-loop: Decision Audit Entry 생성과 실제 Aircraft Runtime 적용을 분리한다.
+- 보안: Controller Position ID는 역할·석 식별자이며 실제 개인 이름이나 군 내부 식별자를 사용하지 않는다.
+- 검증: Phase 11 Controller Decision Domain, Service, Command/API 및 HTTP Adapter 테스트
+
+### ASM-040 - Golden Demo Runtime Composition 경계
+
+- 상태: `PROJECT_DECISION`
+- 내용: Phase 12-A Composition Root는 새 process-local Service와 Catalog를 조립하지만 Clock을 시작하거나
+  계산 Pipeline을 실행하지 않는다.
+- 격리: Factory 호출별 mutable Clock, Queue, Catalog와 Decision Service를 공유하지 않는다.
+- Human-in-the-loop: `ACCEPT` 적용기와 `MODIFY` 재검증 실행기는 아직 Composition에 포함하지 않는다.
+- Persistence: In-memory Recommendation Catalog는 재시작 복구나 영속 Audit을 제공하지 않는다.
+- Step: 같은 Tick에는 하나의 Step만 허용하고 Clock Reset 시 모든 process-local 파생 상태를 비운다.
+- Resolution Step: T+75의 활성 `CIV-A02 / MIL-F01` HIGH Conflict Exception만 선택해 9,000 ft를
+  선호 목표로 Candidate 생성, 전체 Traffic 격리 검증, SAFE 후보 Ranking과 Catalog Publish를 수행한다.
+  이 계산 시점과 데모 화면의 단계별 공개 시점은 분리할 수 있다.
+- Decision Step: T+90에 process-local Catalog의 현재 `CAND-A` Recommendation을 비개인
+  `RKTU-DEMO-CONTROLLER` Position이 `ACCEPT`한 것으로 Audit한다. 이 Entry는 후속 적용을 허가하지만
+  그 자체로 Aircraft Runtime을 변경하지 않는다.
+- Application Step: 감사된 `ACCEPT` 이후에만 T+90 `MIL-F01` Actual State를 9,000 ft, 수직속도
+  0 ft/min의 승인 Anchor로 교체한다. PoC의 즉시 목표값 적용은 `ASM-037`의 격리 검증과 같은
+  단순화이며 실제 항공기 명령 실행·고도 Capture 동역학을 뜻하지 않는다.
+- Post-action: 승인 Anchor 적용 직후 전체 8대 Prediction, Pair Conflict, Risk, Priority와 Exception
+  Queue를 다시 계산한다. 원 `CIV-A02 / MIL-F01` Conflict는 SAFE/LOW가 되고 기존 Queue Item은
+  `RESOLVED`로 전이해야 한다.
+- 검증: Phase 12 Runtime Composition, Step 결정론 및 상태 격리 테스트
+
+### ASM-041 - Golden Demo Session Presentation 상태
+
+- 상태: `PROJECT_DECISION`
+- 내용: Session Stage는 별도 mutable 상태가 아니라 현재 Run에 완료된 Step, Resolution,
+  Controller Decision과 Application/Revalidation 증거의 우선순위로 파생한다.
+- 단계: `READY`, `MONITORING`, `DEVIATION_DETECTED`, `CONFLICT_DETECTED`,
+  `RECOMMENDATION_AVAILABLE`, `DECISION_ACCEPTED`, `CONFLICT_RESOLVED`만 사용한다.
+- Run Identity: Clock Reset 횟수를 0부터 증가하는 `run_number`로 사용하며 Session ID는
+  `<scenario_id>-RUN-<6자리>`다. 이는 영속 실행 ID가 아니라 process-local 표시 ID다.
+- API: Phase 13-A는 읽기 전용이며 Clock 진행, 승인 또는 기동 적용 Command를 포함하지 않는다.
+  Queue는 원 Conflict의 `RESOLVED` 전이를 화면에 표시하기 위해 해결 항목도 포함한다.
+- Command: Phase 13-B는 임의 Tick을 받지 않고 `START(T+0) → ADVANCE_TO_CONFLICT(T+70) →
+  GENERATE_RECOMMENDATION(T+75) → ACCEPT_RECOMMENDATION(T+90) →
+  APPLY_APPROVED_MANEUVER(T+90)` 순서만 허용한다. 각 Command는 현재 Stage와 정확한 경과시각을
+  실행 전에 확인하며 `RESET`은 새 process-local Run을 시작한다.
+- HTTP: Phase 13-C는 `GET /api/v1/golden-demo/session`과 `POST
+  /api/v1/golden-demo/session/commands`만 제공한다. Query를 허용하지 않고 POST Body는 16 KiB 이하의
+  `{"command":"<고정값>"}` JSON Object로 제한한다. 모든 응답은 `Cache-Control: no-store`다.
+- Local Server: Phase 13-D는 Python 표준 라이브러리 WSGI Server를 IPv4 Loopback
+  `127.0.0.1:8000`에만 Bind한다. CLI는 Port만 변경할 수 있고 외부 Interface Bind는 허용하지 않는다.
+- Web UI: Phase 14-A는 별도 Frontend Build Tool 없이 동일 Origin의 정적 HTML/CSS/JavaScript를
+  제공한다. UI는 Session GET 결과만 읽으며 Command 실행과 Runtime 변경 기능은 포함하지 않는다.
+- UI Command: Phase 14-B는 Session Stage별 다음 고정 Command 하나만 Primary Action으로 노출한다.
+  사용자가 Click한 경우에만 POST하고 요청 중 모든 Control을 잠근다. `RESET`은 READY를 제외한 Stage의
+  보조 Action 및 CONFLICT_RESOLVED의 Primary Action으로 제공한다.
+- 검증: 모든 단계의 JSON 직렬화, Reset 격리 및 동일 실행 결정론 테스트
+
+### ASM-042 - 배정 가능한 고도
+
+- 상태: `PROJECT_DECISION`
+- 내용: Altitude Candidate의 목표고도는 1,000 ft 단위여야 한다. 현재고도에 증분을 더한 값을 그대로
+  내면 "8,446 피트로 상승" 같은, 관제사가 실제로 낼 수 없는 지시가 된다. 기동 방향으로 맞춘 뒤
+  성능 포락선 안으로 가둔다 — 상한에 붙은 값을 올림하면 갈 수 없는 고도가 되므로 그때는 상한
+  이하의 배정 가능한 고도를 쓴다.
+- 근거: AIP RKTU 배정고도 사다리(4,000·5,000·6,000)가 1,000 ft 간격이다. 사다리 자체는 T17 상한
+  6,500 ft 때문에 3층뿐이라 그 위 고도에는 직접 쓸 수 없고, 간격만 따른다.
+- 영향: 골든 데모의 CAND-A 9,000 ft는 이 규칙에서 나온 값이다 (7,446 + 1,000 = 8,446 → 9,000).
+  이전에는 Orchestrator가 9,000을 상수로 넘겨 만든 값이었다.
+- 검증: `tests/unit/resolution/test_generator.py`, `tests/acceptance/test_decision_chain_on_any_scenario.py`
+
+### ASM-043 - 민항 운항 시간표
+
+- 상태: `PROVISIONAL`
+- 내용: 출격 시나리오의 민항 교통은 **합성 시간표**다. 실제 7월 4일 09:00~10:00 운항
+  시간표를 확보하지 못했다.
+- 생성 방식: `regulation/schedule.py` 가 슬롯 제약 8회/시를 지키는 시간표를
+  `seed=4` 로 만든다. 같은 seed 는 같은 결과를 낸다 — 시연에서 매번 다른 항적이
+  나오면 무엇을 보여 주는지 설명할 수 없고 시험도 고정할 수 없다.
+- 근거: 청주는 활주로 공용 구조 때문에 시간당 슬롯이 7~8회로 제한된다. 밀도를
+  부풀리면 그 위에서 나오는 분리·순서 숫자가 전부 거짓이 된다.
+- 표시 의무: **합성임을 반드시 표시한다.** 각 편의 `source` 필드에
+  `"슬롯 제약 8회/시 기준 합성, seed=4"` 가 들어간다 — 실측처럼 보이게 하지 않는다.
+- 교체 경로: `data/schedule.json` 이 있으면 그것을 읽는다. 실제 시간표를 확보하면
+  코드 수정 없이 그 파일만 놓으면 된다.
+- 검증: `tests/unit/regulation/test_schedule.py`
+
+### ASM-044 - 출격 시나리오 교통 구성
+
+- 상태: `PROJECT_DECISION`
+- 내용: `RKTU_SORTIE_V1` 은 75분(09:00~10:00 창) 동안 15대가 들고 나며, 동시에 떠
+  있는 것은 **많아야 다섯 대**다. 13단계로 나뉘고 4막(평시·출격·비상복귀·우선착륙)
+  구조를 갖는다. 기본값은 `seed=4`, 작전지역 `MOA 3A`, 초계 소티 3회다.
+- 근거: 청주의 실제 교통량(시간당 8회)에서 나온 밀도다. 화면을 채우려고 밀도를
+  부풀리지 않는다 — 부풀리면 그 위에서 나오는 분리·순서·체공 판정이 전부 무의미해진다.
+- 퇴장: 착륙한 항공기는 `exit_time_utc` 로 사라진다. 활주로를 지나 계속 직진하는
+  유령이 분리 판정 대상으로 남지 않게 한다.
+- 공백 구간: 전투기는 출격 항적과 복귀 항적 사이 약 13분 동안 **화면에 없다.**
+  두 항적은 47 NM 떨어진 곳에서 끝나고 시작하므로 이으려면 항적을 지어내야 한다.
+  SENTRY 는 터미널 구역 판단 도구이고 작전지역의 항공기는 그 관할이 아니므로,
+  잇지 않는 것이 사실에 가깝다. `ScenarioAircraft.presence` 가 이 구조를 담는다.
+- 골든 데모와의 관계: 골든 데모(8대 5분, `ASM-015`)는 그대로 남으며 회귀 고정물로
+  쓴다. `--check` 가 검사하는 것은 골든 데모다.
+- 검증: `tests/acceptance/test_decision_chain_on_any_scenario.py`
+
+### ASM-045 - 외부 공개와 관람 전용
+
+- 상태: `PROJECT_DECISION`
+- 배경: 이 서버는 루프백 전용으로 설계됐다. **인증이 없고, 세션이 하나다** —
+  관제 콘솔과 시연 화면이 같은 세션을 본다. 두 화면을 붙여 놓기 위한 구조인데,
+  밖에 열면 뜻이 달라진다. 주소를 아는 사람이면 누구나 승인·수정·거부를 누를 수
+  있고, 발표 중에 모르는 사람이 회피안을 거부하면 그대로 반영된다.
+- 내용: 여는 것과 관람 전용을 함께 둔다.
+  - 기본 바인드는 `127.0.0.1` 이며 `--host` 로 **명시했을 때만** 밖으로 열린다.
+  - 밖으로 열리면 **조작할 수 있는 요청은 루프백에서 왔고 중계 흔적이 없는
+    것뿐**이다. 나머지는 읽기만 된다 (`403 VIEWER_ONLY`).
+  - `--control any` 로 그 울타리를 걷을 수 있다. 기본으로 두지 않는다.
+- 중계 흔적을 함께 보는 이유: 터널(Cloudflare Tunnel, ngrok 등)을 쓰면 중계
+  프로세스가 서버에 붙으므로 원격 요청도 `REMOTE_ADDR` 이 `127.0.0.1` 이 된다.
+  주소만 보면 전원이 발표자가 되고 관람 전용이 통째로 무너진다. 터널은 원
+  요청자를 헤더(`X-Forwarded-For` 등)에 남기므로 그것이 있으면 중계로 본다.
+- 막는 방식: **메서드로 가른다.** 읽기(`GET`/`HEAD`/`OPTIONS`)만 통과시킨다.
+  명령 경로만 이름으로 골라 막으면 경로가 하나 늘 때마다 함께 늘려야 하고,
+  늘리는 것을 잊으면 조용히 뚫린다.
+- 화면: `/api/v1/reference/access` 가 요청마다 조작 가능 여부를 답하고, 두 화면은
+  그에 맞춰 단추를 감추고 「관람 모드」 배지를 띄운다. **감추는 것이지 막는 것이
+  아니다** — 실제 차단은 서버가 한다. 화면만 고쳐서 막으면 막은 것이 아니다.
+- **이것은 인증이 아니다.** 같은 기계에 접근할 수 있는 사람은 조작할 수 있고,
+  헤더를 지울 수 있는 중계자도 마찬가지다. 발표 중 우연한 조작을 막는 울타리이며,
+  공개 인터넷에 두어도 되는 근거가 아니다. `wsgiref.simple_server` 는 단일 스레드
+  개발용 서버다.
+- 남은 것: 진짜 관람 전용(명령 API 자체를 내리는 배포 형태)과 인증은 범위 밖이다.
+- 검증: `tests/unit/infrastructure/http_adapter/test_access.py`
+
+### ASM-046 - 최저고도 차트 (표시 전용)
+
+- 상태: `SOURCE_VERIFIED` (자료) / `PROJECT_DECISION` (쓰임)
+- 자료: AIP RKTU AD CHART 2-16 「ATC SURVEILLANCE MINIMUM ALTITUDE CHART - ICAO」
+  (AIRAC AIP AMDT 5/26, 발효 1600UTC 10 JUN 2026). 관제사가 레이더 유도할 때
+  최저고도를 대조하는 차트다.
+- **쓰임: 화면에 그리기만 한다.** 회피안 검증의 최저고도는 여전히 `ASM-037` 의
+  잠정 7,500 ft 다. 이 값을 판정에 넣으면 어떤 후보가 살아남는지가 달라지므로,
+  넣을 때는 13단계 시연 전체를 다시 돌려 확인해야 한다. 발표 전에 조용히 바뀌면
+  안 되는 종류의 변경이라 갈라 두었다.
+  `test_minimum_altitude_chart_is_display_only` 가 판정 계층이 이 자료를 읽지
+  않는다는 것을 못박는다 — 판정에 넣기로 하면 그 시험을 먼저 고치게 된다.
+- 전사한 것: 꼭짓점 22개(도분초), 최저고도 10개 구역의 값과 저온보정값,
+  눈으로 확인한 경계 15구간(라디얼 9 · 원호 6).
+- 파생한 것 1개: `R10_135`. 차트에 「10 NM/135°」 라벨은 있는데 좌표가 인쇄돼
+  있지 않다. 같은 라디얼의 14 NM 전사점이 정하는 방위로 10 NM 지점을 계산했다.
+- 잰 것: 최저고도 숫자의 **자리**. 차트를 경위도 격자에 맞춰(경도 10′=288.4 px,
+  위도 5′=180.8 px) 픽셀을 환산했으며 오차는 0.2 NM 안팎이다. 숫자 자체는 전사값.
+- **넣지 않은 것**: 구역의 면(어느 꼭짓점이 어느 구역을 둘러싸는가). 차트에서
+  분명히 읽히지 않는 구간이 있어 비워 두었다. 없는 선을 그려 이어 보이게 하지
+  않는다. 그래서 화면에는 경계망과 숫자가 뜨고, 「이 점이 어느 구역인가」는
+  판정하지 않는다.
+- 라디얼을 쓰지 않은 이유: 차트는 경계를 「24 NM/050°」처럼 VOR 라디얼로 적는데,
+  그 값은 VOR 이 교정된 시점의 정렬을 따른다. 전사 좌표로 계산한 자기방위와
+  라디얼 값의 차이는 남쪽 -1.3° 에서 북동쪽 +4.6° 까지 라디얼마다 다르다.
+  한 방향으로 쏠린 상수 편차가 아니므로 보정할 수 없다 — 그래서 라디얼이 아니라
+  **좌표를 전사**했다. 옆으로 벌어지는 거리는 어느 점에서도 2 NM 미만이다.
+- 장애물 3개: AIP RKTU AD 2.10 OBSTACLES(In Area 2) 전사값. 1,962 ft(24R 접근),
+  1,828 ft(24L 접근), 407 ft(안테나). 차트에 그려진 원거리 첨두(2,294~4,725 ft)는
+  좌표가 인쇄돼 있지 않아 넣지 않았다.
+- 관측한 불일치: 차트 머리말은 `AERODROME ELEV 2 031 ft` 라고 적었으나 AIP 본문
+  AD 2.2 는 `58 m (192 ft)` 다. **본문을 따랐고 우리 값은 바꾸지 않았다.**
+- 검증: `tests/unit/api/test_geometry.py`
+
+## 5. Phase별 확정 시점
+
+| Phase | 반드시 확정할 Assumption |
+|---|---|
+| Phase 0 | ASM-001, 002, 005~009, 012, 014, 023, 025~029, 033 |
+| Phase 1 | ASM-003, 004, 034 |
+| Phase 2 | ASM-017 |
+| Phase 3 | ASM-010, 013, 015 |
+| Phase 4 | ASM-016, 022 |
+| Phase 6 | ASM-018, 019 |
+| Phase 7 | ASM-024, 035 |
+| Phase 8 | ASM-036 |
+| Phase 9 | ASM-027, 028, 037 |
+| Phase 10 | ASM-028, 038 |
+| Phase 11 | ASM-028, 033, 039 |
+| Phase 12 | ASM-011, 021, 030, 032, 040 |
+| Phase 13 | ASM-041 |
+| 규정 계층 이후 | ASM-042, 043, 044, 045, 046 |
+
+## 6. 변경 규칙
+
+Assumption을 변경할 때는 다음을 함께 기록한다.
+
+1. 변경 전 값
+2. 변경 후 값
+3. 변경 근거와 출처
+4. 영향받는 Scenario, Config, 코드 및 테스트
+5. 변경일과 문서 버전
+
+`SOURCE_VERIFIED` 항목을 변경할 때는 반드시 새 공식 자료의 적용일과 원문 위치를 남긴다.
