@@ -21,8 +21,8 @@
 .snt-launch-mark { color: var(--snt-accent); font-size: 20px; line-height: 1; }
 .snt-launcher[aria-expanded="true"] { border-color: #7de0d0a6; background: #123333ed; }
 .snt-panel {
-  position: fixed; z-index: 108; top: 108px; bottom: 112px;
-  left: calc(var(--left-stack-x, 52px) + 330px + 16px);
+  position: fixed; z-index: 108; top: 120px; bottom: 112px;
+  left: auto; right: var(--left-stack-x, 52px);
   width: 424px; max-height: 920px; display: flex; flex-direction: column;
   border: 1px solid #7fa2b34d; border-radius: 14px;
   background: #091521f5; box-shadow: 0 20px 65px #0006, inset 0 1px #c9f5f20a;
@@ -173,12 +173,12 @@
 
 @media (max-width: 1360px) { .snt-panel { width: 396px; } }
 @media (max-width: 1150px) {
-  /* A closable foreground console keeps its fields usable beside either rail. */
-  .snt-panel { left: 50%; transform: translateX(-50%); top: 108px; bottom: 112px; z-index: 160; }
+  /* Keep the advisory at the right edge, with a closable overlay on small screens. */
+  .snt-panel { right: 24px; z-index: 160; }
 }
 @media (max-width: 700px) {
-  .snt-launcher { top: 92px; left: 20px; z-index: 311; }
-  .snt-panel { top: 140px; bottom: max(92px, env(safe-area-inset-bottom)); width: min(424px, calc(100vw - 24px)); z-index: 310; background: #091521fc; }
+  .snt-launcher { top: 92px; left: auto; right: 16px; z-index: 311; }
+  .snt-panel { right: 12px; top: 140px; bottom: max(92px, env(safe-area-inset-bottom)); width: min(424px, calc(100vw - 24px)); z-index: 310; background: #091521fc; }
   .snt-header { padding: 12px 13px; }
   .snt-body { padding-inline: 12px; touch-action: pan-x pan-y; }
   .snt-footer { padding-inline: 13px; }

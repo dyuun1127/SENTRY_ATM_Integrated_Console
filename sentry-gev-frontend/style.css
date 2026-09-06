@@ -4182,8 +4182,11 @@ body.cockpit-mode #intel-hud .hud-right-edge { right: 22px; }
   left: 36px;
 }
 
-/* Keep telemetry update targets in the DOM while hiding the decorative text block. */
-#intel-hud .hud-top-left {
+/* Keep telemetry update targets in the DOM while hiding the decorative HUD blocks. */
+#intel-hud .hud-top-left,
+#intel-hud .hud-top-right,
+#intel-hud .hud-bottom-right,
+#intel-hud .hud-right-edge {
   display: none;
 }
 

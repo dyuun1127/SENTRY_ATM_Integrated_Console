@@ -54,13 +54,13 @@ export function createSentryPanel({ onFocusAirport = () => {}, onSelect = () => 
   if (globalThis.location?.origin) scenarioLink.searchParams.set('globe', globalThis.location.origin + '/?sentry=1');
   const launcher = node('button', 'snt-launcher');
   launcher.id = 'snt-launcher'; launcher.type = 'button';
-  launcher.innerHTML = '<span class="snt-launch-mark" aria-hidden="true">◎</span><span>SENTRY <small>CONSOLE</small></span>';
+  launcher.innerHTML = '<span class="snt-launch-mark" aria-hidden="true">◎</span><span>SENTRY <small>ADVISORY</small></span>';
   launcher.setAttribute('aria-controls', 'snt-panel');
   launcher.setAttribute('aria-expanded', 'true');
   const panel = node('aside', 'snt-panel');
   panel.id = 'snt-panel'; panel.lang = 'ko'; panel.setAttribute('aria-labelledby', 'snt-title');
   panel.innerHTML = `
-    <header class="snt-header"><div><p class="snt-eyebrow">RKTU / CONTROLLER WORKSPACE</p><h2 id="snt-title">SENTRY <span>ATM</span></h2></div><button class="snt-icon-button" id="snt-close" type="button" aria-label="SENTRY 패널 닫기">×</button></header>
+    <header class="snt-header"><div><p class="snt-eyebrow">RKTU / CONTROLLER WORKSPACE</p><h2 id="snt-title">SENTRY <span>ADVISORY</span></h2></div><button class="snt-icon-button" id="snt-close" type="button" aria-label="SENTRY 패널 닫기">×</button></header>
     <div class="snt-body">
       <div class="snt-provenance"><span class="snt-badge">PLAYBACK + SYNTHETIC</span><p>기록·합성 항적 시연 · 공개 실시간 피드와 별도</p></div>
       <section class="snt-section"><div class="snt-row"><h3>시뮬레이션 상태</h3><span id="snt-stage" class="snt-stage">연결 대기</span></div><p id="snt-clock" class="snt-clock">--:--:--</p><p id="snt-utc" class="snt-meta">시뮬레이션 시각 대기</p><p id="snt-current-step" class="snt-step">시나리오를 불러오고 있습니다.</p>
