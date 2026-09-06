@@ -583,6 +583,12 @@ export function createGevActionRunner({ viewer, styleManager, dataManager, scene
       const panelId = normalizePanelId(args.panelId || args.panel);
       if (!panelId) throw new Error(`Unknown panel: ${args.panelId || args.panel || 'missing'}`);
       const open = args.open !== false;
+      if (!globalThis.document?.getElementById?.(panelId)) {
+        return {
+          ok: false, action: 'set_panel_open', panelId, open,
+          error: 'Panel unavailable in this console',
+        };
+      }
       setPanelOpen(styleManager, panelId, open);
       return { ok: true, action: 'set_panel_open', panelId, open };
     }

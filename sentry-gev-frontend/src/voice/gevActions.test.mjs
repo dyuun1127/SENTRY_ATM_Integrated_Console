@@ -156,6 +156,68 @@ function createVoiceNavigationHarness({ cockpitActive = false } = {}) {
   };
 }
 
+test('set_panel_open rejects a removed Scenes panel without changing panel state', async (t) => {
+  globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  globalThis.document = { getElementById: () => null };
+  t.after(() => {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+  });
+  const { viewer, styleManager } = createVoiceNavigationHarness();
+  const panelCalls = [];
+  styleManager.setPanelCollapsed = (...args) => panelCalls.push(args);
+  const runner = createGevActionRunner({
+    viewer,
+    styleManager,
+    dataManager: { layers: new Map(), getAll: () => [] },
+  });
+
+  for (const panelId of ['scene-panel', 'scene', 'scenes']) {
+    for (const open of [true, false]) {
+      const result = await runner('set_panel_open', { panelId, open });
+      assert.equal(result.ok, false);
+      assert.equal(result.action, 'set_panel_open');
+      assert.equal(result.panelId, 'scene-panel');
+      assert.match(result.error, /unavailable/i);
+    }
+  }
+  assert.deepEqual(panelCalls, [], 'a removed panel must not claim or persist UI state');
+});
+
+test('set_panel_open still opens and closes panels present in the console', async (t) => {
+  globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const panels = new Map(['data-panel', 'global-context-panel'].map((id) => [id, { id }]));
+  globalThis.document = { getElementById: (id) => panels.get(id) || null };
+  t.after(() => {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete globalThis.document;
+  });
+  const { viewer, styleManager } = createVoiceNavigationHarness();
+  const panelCalls = [];
+  styleManager.setPanelCollapsed = (...args) => panelCalls.push(args);
+  const runner = createGevActionRunner({
+    viewer,
+    styleManager,
+    dataManager: { layers: new Map(), getAll: () => [] },
+  });
+
+  for (const panelId of panels.keys()) {
+    for (const open of [true, false]) {
+      assert.deepEqual(await runner('set_panel_open', { panelId, open }), {
+        ok: true, action: 'set_panel_open', panelId, open,
+      });
+    }
+  }
+  assert.deepEqual(panelCalls, [
+    ['data-panel', false, { explicit: true }],
+    ['data-panel', true, { explicit: true }],
+    ['global-context-panel', false, { explicit: true }],
+    ['global-context-panel', true, { explicit: true }],
+  ]);
+});
+
 test('zoom to globe adopts the shared visible reset route and returns its result', async () => {
   globalThis.window = globalThis.window || { clearTimeout, setTimeout, requestIdleCallback: null };
   const viewer = {
