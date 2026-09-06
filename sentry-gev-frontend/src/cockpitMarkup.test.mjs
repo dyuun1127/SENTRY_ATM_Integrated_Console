@@ -312,11 +312,12 @@ test('Clear Selected Layers uses one adopted batch and discards Context restorat
 });
 
 test('Cockpit Display portal retains both scroll owners across round trips', () => {
-  assert.match(ui, /this\._standardDisplayScrollTop = this\._ppToggles\?\.scrollTop \|\| 0/);
+  assert.match(ui, /this\._standardDisplayScrollTop = this\._standardDisplayScrollOwner\?\.scrollTop \|\| 0/);
   assert.match(ui, /this\._cockpitDisplayScrollTop = this\._cockpitDisplayPanel\?\.scrollTop \|\| 0/);
-  assert.match(ui, /if \(!this\._cockpitDisplayPortalActive\)[\s\S]*?this\._standardDisplayScrollTop = this\._ppToggles\?\.scrollTop/);
+  assert.match(ui, /if \(!this\._cockpitDisplayPortalActive\)[\s\S]*?this\._standardDisplayScrollTop = this\._standardDisplayScrollOwner\?\.scrollTop/);
   assert.match(ui, /if \(this\._cockpitDisplayPortalActive\)[\s\S]*?this\._cockpitDisplayScrollTop = this\._cockpitDisplayPanel\?\.scrollTop/);
-  assert.match(ui, /this\._cockpitDisplayPanel\.scrollTop = this\._cockpitDisplayScrollTop[\s\S]*?this\._ppToggles\.scrollTop = this\._standardDisplayScrollTop/);
+  assert.match(ui, /this\._cockpitDisplayPanel\.scrollTop = this\._cockpitDisplayScrollTop[\s\S]*?this\._standardDisplayScrollOwner\.scrollTop = this\._standardDisplayScrollTop/);
+  assert.match(ui, /this\._standardDisplayScrollOwner\?\.removeEventListener\('scroll', this\._standardDisplayScrollHandler\)/);
 });
 
 test('Cockpit side surfaces behave as two single-expanded accordions', () => {

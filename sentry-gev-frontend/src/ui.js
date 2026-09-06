@@ -6783,7 +6783,10 @@ export class StyleManager {
     this._ppToggles.style.removeProperty('z-index');
     this._ppToggles.classList.remove('panel-draggable', 'panel-dragging');
     this._ppToggles.querySelector('.pp-header-row')?.removeAttribute('title');
-    stack.prepend(this._ppToggles);
+    const layers = stack.querySelector(':scope > #data-panel');
+    if (layers) layers.after(this._ppToggles);
+    else stack.prepend(this._ppToggles);
+    this._syncPanelCollapseButton(this._ppToggles);
     const globalContextPanel = document.getElementById('global-context-panel');
     if (this._cctvPanel) {
       this._cctvPanel.style.removeProperty('top');
@@ -6880,6 +6883,12 @@ export class StyleManager {
     if (!stack) return;
 
     const panels = [...stack.children].filter((panel) => panel.matches('[data-panel-id]'));
+    // The combined SENTRY sidebar uses one native scroller. Keep every launcher
+    // available instead of allocating separate left/right HUD corridors.
+    if (stack.dataset?.sentrySidebar === 'true') {
+      stack.dataset.layoutMode = 'sentry-flow';
+      return;
+    }
     if (!this.hud.visible || this.hud.getVariant() !== 'tactical') {
       for (const panel of panels.filter((item) => item.classList.contains('layout-auto-collapsed'))) {
         panel.classList.remove('collapsed', 'layout-auto-collapsed');
@@ -7428,7 +7437,8 @@ export class StyleManager {
    * @returns {void}
    */
   _syncPanelCollapseButton(panelEl) {
-    const isRightRail = ['pp-toggles', 'cctv-panel', 'global-context-panel'].includes(panelEl?.id);
+    const isRightRail = !panelEl?.closest?.('[data-sentry-sidebar="true"]')
+      && ['pp-toggles', 'cctv-panel', 'global-context-panel'].includes(panelEl?.id);
     const collapsed = panelEl.classList.contains('collapsed');
     panelEl.querySelectorAll('.panel-collapse-btn[data-collapse-target]').forEach((btn) => {
       const owner = btn.closest('[data-panel-id], #param-slider-panel');
@@ -8996,7 +9006,7 @@ export class StyleManager {
     this._syncPanelCollapseButton(this._sliderPanel);
     this.setPanelCollapsed('pp-toggles', false, { explicit: true });
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const scrollOwner = this._ppToggles;
+      const scrollOwner = this._standardDisplayScrollOwner || this._ppToggles;
       if (!scrollOwner) return;
       const ownerRect = scrollOwner.getBoundingClientRect();
       const panelRect = this._sliderPanel.getBoundingClientRect();
@@ -9942,6 +9952,9 @@ export class StyleManager {
    * @returns {void}
    */
   _initCockpitDisplayPortal() {
+    this._standardDisplayScrollOwner = this._rightPanelStack?.dataset?.sentrySidebar === 'true'
+      ? this._rightPanelStack
+      : this._ppToggles;
     const definitions = [
       ['hud', this._hudBtn?.closest('.pp-toggle-group')],
       ['detection', this._detectionBtn?.closest('.pp-toggle-group')],
@@ -9957,11 +9970,11 @@ export class StyleManager {
       group.before(anchor);
       return [{ name, group, slot, anchor }];
     });
-    this._standardDisplayScrollTop = this._ppToggles?.scrollTop || 0;
+    this._standardDisplayScrollTop = this._standardDisplayScrollOwner?.scrollTop || 0;
     this._cockpitDisplayScrollTop = this._cockpitDisplayPanel?.scrollTop || 0;
     this._standardDisplayScrollHandler = () => {
       if (!this._cockpitDisplayPortalActive) {
-        this._standardDisplayScrollTop = this._ppToggles?.scrollTop || 0;
+        this._standardDisplayScrollTop = this._standardDisplayScrollOwner?.scrollTop || 0;
       }
     };
     this._cockpitDisplayScrollHandler = () => {
@@ -9969,7 +9982,7 @@ export class StyleManager {
         this._cockpitDisplayScrollTop = this._cockpitDisplayPanel?.scrollTop || 0;
       }
     };
-    this._ppToggles?.addEventListener('scroll', this._standardDisplayScrollHandler, { passive: true });
+    this._standardDisplayScrollOwner?.addEventListener('scroll', this._standardDisplayScrollHandler, { passive: true });
     this._cockpitDisplayPanel?.addEventListener('scroll', this._cockpitDisplayScrollHandler, { passive: true });
     this._cockpitDisplayModeHandler = (event) => {
       this._setCockpitDisplayPortalActive(event?.detail?.active === true);
@@ -10005,8 +10018,8 @@ export class StyleManager {
       if (nextActive && this._cockpitDisplayPanel) {
         this._cockpitDisplayPanel.scrollTop = this._cockpitDisplayScrollTop;
       }
-      if (!nextActive && this._ppToggles) {
-        this._ppToggles.scrollTop = this._standardDisplayScrollTop;
+      if (!nextActive && this._standardDisplayScrollOwner) {
+        this._standardDisplayScrollOwner.scrollTop = this._standardDisplayScrollTop;
       }
       focusedElement?.focus?.({ preventScroll: true });
       // Portal movement can trigger one more adaptive-layout/clamp pass after
@@ -10016,8 +10029,8 @@ export class StyleManager {
         if (nextActive && this._cockpitDisplayPanel) {
           this._cockpitDisplayPanel.scrollTop = this._cockpitDisplayScrollTop;
         }
-        if (!nextActive && this._ppToggles) {
-          this._ppToggles.scrollTop = this._standardDisplayScrollTop;
+        if (!nextActive && this._standardDisplayScrollOwner) {
+          this._standardDisplayScrollOwner.scrollTop = this._standardDisplayScrollTop;
         }
         if (this._displayPortalScrollRestoreOwner === (nextActive ? 'cockpit' : 'standard')) {
           this._displayPortalScrollRestoreOwner = null;
@@ -10214,7 +10227,7 @@ export class StyleManager {
       this._cockpitDisplayModeHandler = null;
     }
     this._setCockpitDisplayPortalActive(false);
-    this._ppToggles?.removeEventListener('scroll', this._standardDisplayScrollHandler);
+    this._standardDisplayScrollOwner?.removeEventListener('scroll', this._standardDisplayScrollHandler);
     this._cockpitDisplayPanel?.removeEventListener('scroll', this._cockpitDisplayScrollHandler);
     this._standardDisplayScrollHandler = null;
     this._cockpitDisplayScrollHandler = null;

@@ -22,7 +22,7 @@
 .snt-launcher[aria-expanded="true"] { border-color: #7de0d0a6; background: #123333ed; }
 .snt-panel {
   position: fixed; z-index: 108; top: 108px; bottom: 112px;
-  left: calc(var(--left-stack-x, 52px) + var(--display-panel-expanded-width, 272px) + 20px);
+  left: calc(var(--left-stack-x, 52px) + 330px + 16px);
   width: 424px; max-height: 920px; display: flex; flex-direction: column;
   border: 1px solid #7fa2b34d; border-radius: 14px;
   background: #091521f5; box-shadow: 0 20px 65px #0006, inset 0 1px #c9f5f20a;

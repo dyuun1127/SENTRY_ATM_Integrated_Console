@@ -9526,3 +9526,96 @@ body.scene-playback-mode #key-setup {
   border-color: rgba(255, 170, 150, 0.65);
   outline: none;
 }
+
+/* SENTRY map controls share one left-hand scroll owner: DATA, DISPLAY, CONTEXT. */
+#left-panel-stack:empty { display: none !important; }
+#right-context-rail[data-sentry-sidebar="true"] {
+  top: 120px;
+  right: auto;
+  bottom: auto;
+  left: var(--left-stack-x, 52px);
+  width: 330px;
+  max-width: calc(100vw - 32px);
+  height: auto;
+  max-height: calc(100dvh - 120px - 2vh - 7.5rem);
+  align-items: flex-start;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(98, 181, 255, .48) transparent;
+  transition: none;
+}
+#right-context-rail[data-sentry-sidebar="true"] > :is(#data-panel, #pp-toggles, #global-context-panel) {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-inline: 0;
+  overflow: visible;
+}
+#right-context-rail[data-sentry-sidebar="true"] > :is(#data-panel, #pp-toggles, #global-context-panel).collapsed {
+  width: var(--left-collapsed-width, 176px);
+  margin-inline: 0;
+}
+#right-context-rail[data-sentry-sidebar="true"] > #pp-toggles { align-items: stretch; }
+#right-context-rail[data-sentry-sidebar="true"] :is(.data-panel-inner, .data-toggle-list, .global-context-panel-inner, .context-mode-view, #military-awareness-panel) {
+  height: auto;
+  max-height: none;
+  flex-shrink: 0;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+#right-context-rail[data-sentry-sidebar="true"] > #global-context-panel:not(.collapsed) .global-context-panel-inner {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+#right-context-rail[data-sentry-sidebar="true"] > #data-panel.collapsed .data-panel-inner {
+  min-height: 50px;
+  justify-content: center;
+}
+/* Expand the radio disclosure inside the flow instead of beyond a clipped edge. */
+#right-context-rail[data-sentry-sidebar="true"] > #global-context-panel:has(.context-radio-dock.disclosure-open) {
+  width: 100%;
+  height: auto;
+}
+#right-context-rail[data-sentry-sidebar="true"] > #global-context-panel:has(.context-radio-dock.disclosure-open) .global-context-panel-inner {
+  height: auto;
+  min-height: 50px;
+  max-height: none;
+  justify-content: flex-start;
+}
+#right-context-rail[data-sentry-sidebar="true"] > #global-context-panel:has(.context-radio-dock.disclosure-open) .panel-header {
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-content: flex-start;
+}
+#right-context-rail[data-sentry-sidebar="true"] .panel-header:has(.context-radio-dock.disclosure-open) { flex-wrap: wrap; }
+#right-context-rail[data-sentry-sidebar="true"] .context-radio-dock.disclosure-open {
+  width: 100%; order: 1; flex-wrap: wrap; justify-content: flex-end;
+}
+#right-context-rail[data-sentry-sidebar="true"] .context-radio-mini {
+  position: static; width: 100%; max-width: 100%; margin-top: 8px;
+}
+/* Cockpit keeps DATA available; its DISPLAY/CONTEXT controls use their portals. */
+body.cockpit-mode #right-context-rail[data-sentry-sidebar="true"] { display: flex !important; z-index: 147; }
+body.cockpit-mode #right-context-rail[data-sentry-sidebar="true"] > :is(#pp-toggles, #global-context-panel) { display: none !important; }
+body.ui-clean-view #right-context-rail[data-sentry-sidebar="true"],
+body.recording-mode #right-context-rail[data-sentry-sidebar="true"] { display: none !important; }
+@media (max-width: 720px) {
+  #right-context-rail[data-sentry-sidebar="true"] {
+    top: 120px; right: auto; bottom: auto; left: 16px;
+    width: min(330px, calc(100vw - 32px));
+    height: auto; max-height: calc(100dvh - 120px - 2vh - 7.5rem);
+  }
+}

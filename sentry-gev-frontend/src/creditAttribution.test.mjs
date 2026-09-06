@@ -189,6 +189,7 @@ const RULES = flattenRules(css);
 
 // Selectors that position a modelled element's OWN box. Anything else that
 // positions one of these elements is an unmodelled construct and fails.
+const NATIVE_SIDEBAR = '#right-context-rail[data-sentry-sidebar="true"]';
 const RECOGNIZED = new Set([
   // credit
   '#cesium-credits',
@@ -203,6 +204,7 @@ const RECOGNIZED = new Set([
   // rail
   '#right-context-rail',
   '#right-context-rail.layout-focus',
+  NATIVE_SIDEBAR,
   // tray
   '#command-dock .dock-popover-content',
   '#command-dock #location-bar .dock-popover-content',
@@ -270,9 +272,9 @@ function appliesAt(rule, width, label) {
 }
 
 /** Resolve `prop` by real cascade order: importance, then specificity, then source. */
-function resolve(candidates, prop, width, label) {
+function resolve(candidates, prop, width, label, rules = RULES) {
   let winner = null;
-  for (const rule of RULES) {
+  for (const rule of rules) {
     if (!rule.parts.some((part) => candidates.includes(part))) continue;
     if (!appliesAt(rule, width, label)) continue;
     for (const part of rule.parts) {
@@ -363,6 +365,56 @@ function trayBottomPx(scenario, width, height) {
     + toPx(margin.decl.value, height, 'tray margin');
 }
 
+/** Evaluate the native rail's flat calc, including dynamic viewport height. */
+function nativeSidebarCapPx(value, height, dynamicHeight) {
+  const expression = /^calc\(([^()]+)\)$/.exec(value);
+  assert.ok(expression, `unmodelled native sidebar height: "${value}"`);
+  const text = expression[1].trim();
+  const token = /\s*([+-]?)\s*(\d+(?:\.\d+)?)(dvh|vh|px|rem)/gy;
+  let cursor = 0;
+  let total = 0;
+  while (cursor < text.length) {
+    token.lastIndex = cursor;
+    const match = token.exec(text);
+    assert.ok(match, `unmodelled native sidebar term at "${text.slice(cursor)}"`);
+    assert.ok(cursor === 0 || match[1], 'each height term needs an explicit + or -');
+    const unit = { px: 1, rem: REM_PX, vh: height / 100, dvh: dynamicHeight / 100 }[match[3]];
+    total += (match[1] === '-' ? -1 : 1) * Number(match[2]) * unit;
+    cursor = token.lastIndex;
+  }
+  return Math.max(0, total); // CSS clamps a negative maximum height at zero.
+}
+
+function nativeSidebarClearance(width, height, dynamicHeight, rules = RULES) {
+  const selectors = ['#right-context-rail', NATIVE_SIDEBAR];
+  const property = name => resolve(selectors, name, width, 'native sidebar', rules).decl.value;
+  assert.equal(property('position'), 'fixed');
+  assert.equal(property('height'), 'auto', 'a fixed height could over-constrain the native rail');
+  assert.equal(property('bottom'), 'auto', 'the native rail is bounded by top + max-height');
+  assert.equal(property('overflow-y'), 'auto', 'expanded contents must remain inside the scroll owner');
+  assert.equal(resolve(['*', ...selectors], 'box-sizing', width, 'native sidebar', rules).decl.value,
+    'border-box', 'the cap must include borders and padding');
+  const top = toPx(property('top'), height, 'native sidebar top');
+  const cap = nativeSidebarCapPx(property('max-height'), height, dynamicHeight);
+  const credit = resolve(CREDIT_SELECTORS, 'bottom', width, 'credit', rules);
+  // Compare with the smaller dynamic viewport floor while vh uses its layout
+  // height. A taller fixed-position containing block only adds clearance.
+  return dynamicHeight - top - cap
+    - toPx(credit.decl.value, height, 'credit bottom') - CREDIT_HEIGHT_PX;
+}
+
+function assertNativeSidebarClearance(rules = RULES) {
+  for (const width of WIDTHS) {
+    for (const height of HEIGHTS) {
+      for (const chromeHeight of [0, 48, 96]) {
+        const clearance = nativeSidebarClearance(width, height, height - chromeHeight, rules);
+        assert.ok(clearance >= 12 - 1e-6,
+          `native sidebar @ ${width}x${height}, browser chrome ${chromeHeight}px: ${clearance.toFixed(1)}px credit clearance`);
+      }
+    }
+  }
+}
+
 // ── Fail-closed guards ──────────────────────────────────────────────────────
 
 test('the specificity calculator itself is pinned', () => {
@@ -411,7 +463,10 @@ test('the model refuses every cascade construct it cannot resolve', () => {
         // (proven inapplicable at <=720px by the mobile-mode test).
         const railOwn = part === '#right-context-rail' && decl.prop === 'max-height';
         const railFocus = part === '#right-context-rail.layout-focus';
-        if (!railOwn && !railFocus) complaints.push(`${decl.prop}: ${decl.value} on "${part}"`);
+        // Native flow uses top + an evaluated maximum height instead of bottom.
+        // Its auto height, clipped scroll owner, and clearance are proven below.
+        const nativeRail = part === NATIVE_SIDEBAR;
+        if (!railOwn && !railFocus && !nativeRail) complaints.push(`${decl.prop}: ${decl.value} on "${part}"`);
       }
       if (decl.prop === 'transform' && /translateY|translate3d|matrix|scale\(/.test(decl.value)) {
         const identity = decl.value === 'translateY(0) scale(1)';
@@ -591,4 +646,27 @@ test('the credit line is never suppressed to make room', () => {
     assert.doesNotMatch(block, /opacity\s*:\s*0(\D|$)/, 'the credit must never be faded out');
   }
   assert.match(css, /body\.ui-clean-view #cesium-credits,\s*\n\s*body\.recording-mode #cesium-credits \{[^}]*bottom: 36px;/);
+});
+
+
+test('the native sidebar clears credits by 12px across full and reduced dynamic viewports', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.match(html, /id="right-context-rail"[^>]*data-sentry-sidebar="true"/);
+  // Sidebar mode returns before the legacy layout can install focus/height
+  // overrides. Retain the separate legacy proof for non-SENTRY callers above.
+  assert.match(ui, /if \(stack\.dataset\?\.sentrySidebar === 'true'\) \{\s*stack\.dataset\.layoutMode = 'sentry-flow';\s*return;/);
+  assertNativeSidebarClearance();
+});
+
+test('the native clearance proof rejects a larger cap or a lower top anchor', () => {
+  const cap = resolve([NATIVE_SIDEBAR], 'max-height', 1440, 'native sidebar').decl.value;
+  const unsafeCap = css.replaceAll(cap, 'calc(100dvh - 120px)');
+  assert.notEqual(unsafeCap, css);
+  assert.throws(() => assertNativeSidebarClearance(flattenRules(unsafeCap)), /credit clearance/);
+
+  // Append a same-specificity later rule: the real cascade must apply it,
+  // rather than reasoning only about the first known native declaration.
+  const lowerTop = `${css}\n${NATIVE_SIDEBAR} { top: 160px; }`;
+  assert.throws(() => assertNativeSidebarClearance(flattenRules(lowerTop)), /credit clearance/);
+  assert.throws(() => nativeSidebarCapPx('calc(100dvh / 2)', 800, 704), /unmodelled native sidebar term/);
 });
