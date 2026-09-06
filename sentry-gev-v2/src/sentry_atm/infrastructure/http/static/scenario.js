@@ -14,6 +14,33 @@
 
 "use strict";
 
+/* The linked Globe may use a separate loopback port; public navigation stays same-origin. */
+function scenarioGlobeUrl(pageHref, publicConfig = null) {
+  let page;
+  try { page = new URL(pageHref); } catch { return null; }
+  if (!['http:', 'https:'].includes(page.protocol)) return null;
+  const requested = page.searchParams.get('globe');
+  if (requested) {
+    try {
+      const target = new URL(requested, page);
+      const loopback = (hostname) => hostname === 'localhost' || hostname === '[::1]'
+        || /^127\.\d+\.\d+\.\d+$/.test(hostname);
+      if (['http:', 'https:'].includes(target.protocol) && !target.username && !target.password
+        && (target.origin === page.origin || (loopback(target.hostname) && loopback(page.hostname)))) {
+        return target.href;
+      }
+    } catch { /* Keep the authored legacy console link when the supplied address is invalid. */ }
+  }
+  return publicConfig && typeof publicConfig.viewer === 'boolean'
+    ? new URL('/?sentry=1', page).href : null;
+}
+
+function configureConsoleLinks() {
+  const target = scenarioGlobeUrl(window.location.href, globalThis.__SENTRY_PUBLIC_CONFIG__);
+  if (!target) return;
+  for (const link of document.querySelectorAll('[data-sentry-console-link]')) link.href = target;
+}
+
 const API = "/api/v1/golden-demo/session";
 const ACCESS = "/api/v1/reference/access";
 const SCENARIO = "/api/v1/reference/scenario";
@@ -514,6 +541,7 @@ function applyAccess(access) {
 }
 
 async function boot() {
+  configureConsoleLinks();
   buildControls();
   try {
     state.scenario = await get(SCENARIO);

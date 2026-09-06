@@ -6,6 +6,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { parseArgs } from 'node:util';
 import puppeteer from 'puppeteer';
+import { decisionActions } from '../src/sentry/decision.js';
 
 const { values } = parseArgs({ options: { exercise: { type: 'boolean', default: false },
   help: { type: 'boolean', default: false } } });
@@ -23,6 +24,7 @@ assert.ok(!base.username && !base.password && base.pathname === '/' && !base.sea
 const origin = base.origin, timeout = 60000, output = '.gev-logs/public-qa';
 const sessionPath = '/api/v1/golden-demo/session';
 const allowed = ['sentry-demo', 'flights', 'military'];
+const registered = [...allowed, 'military-awareness'];
 const report = { result: 'RUNNING', origin, mode: values.exercise ? 'exercise' : 'read-only',
   checks: [], commands: [], pageErrors: [], resourceErrors: [], browserWrites: [], ancillaryRequests: [] };
 fs.mkdirSync(output, { recursive: true });
@@ -123,6 +125,24 @@ function sameSession(actual, expected, label) {
     assert.deepEqual(actual[key], expected[key], label + ': concurrent state change in ' + key);
   }
 }
+async function assertDecisionControls(page) {
+  const state = await page.evaluate(() => {
+    const current = window.__godsEyeView.sentry.controller.getSnapshot();
+    return { session: current.session, access: current.access, stale: current.stale, busy: current.busy,
+      timeControls: document.querySelectorAll('#snt-reset, #snt-advance, #snt-next').length,
+      buttons: [...document.querySelectorAll('button[data-decision-command]')].map(button => ({
+        command: button.dataset.decisionCommand, hidden: button.hidden, disabled: button.disabled,
+      })) };
+  });
+  assert.equal(state.timeControls, 0, 'Only /scenario may expose playback controls');
+  assert.equal(state.buttons.length, 7, 'The complete Globe controller workflow must be mounted');
+  const available = decisionActions(state.session).map(action => action.command);
+  assert.deepEqual(state.buttons.filter(button => !button.hidden).map(button => button.command).sort(), available.sort());
+  for (const button of state.buttons.filter(button => !button.hidden)) {
+    assert.equal(button.disabled, !state.access.canControl || state.stale || state.busy,
+      button.command + ' must honor operator access and current evidence');
+  }
+}
 function assertReady(session) {
   assert.equal(session.stage, 'READY', '--exercise needs READY; no automatic pre-test reset is issued');
   assert.equal(session.elapsed_seconds, 0, '--exercise needs 0 seconds');
@@ -161,34 +181,42 @@ try {
   await globe.waitForFunction(() => Boolean(window.__godsEyeView?.sentry?.ready));
   await bounded(globe.evaluate(() => window.__godsEyeView.sentry.ready), 'SENTRY ready');
   await globe.waitForFunction(() => document.querySelector('#loading-screen')?.classList.contains('hidden')
-    && Boolean(window.__godsEyeView?.sentry?.layer.getSnapshot()?.session));
+    && Boolean(window.__godsEyeView?.sentry?.controller.getSnapshot()?.session));
   const state = await globe.evaluate(() => {
     const app = window.__godsEyeView, canvas = app.viewer.scene.canvas;
-    return { ids: app.dataManager.getAll().map(layer => layer.id), mode: app.viewer.scene.mode,
+    return { ids: app.dataManager.getAll().map(layer => layer.id),
+      visibleIds: app.dataManager.getAll().filter(layer => layer.showInTogglePanel !== false).map(layer => layer.id),
+      mode: app.viewer.scene.mode,
       canvas: [canvas.width, canvas.height], destroyed: app.viewer.isDestroyed(),
-      config: window.__SENTRY_PUBLIC_CONFIG__, advanceDisabled: document.querySelector('#snt-advance').disabled,
-      stage: app.sentry.layer.getSnapshot().session.stage,
+      config: window.__SENTRY_PUBLIC_CONFIG__, canControl: app.sentry.controller.getSnapshot().access.canControl,
+      stage: app.sentry.controller.getSnapshot().session.stage,
       links: [...document.querySelectorAll('#snt-panel .snt-footer a')].map(a => a.href) };
   });
-  assert.deepEqual(state.ids, allowed);
+  assert.deepEqual(state.ids, registered);
+  assert.deepEqual(state.visibleIds, allowed);
   assert.deepEqual(await globe.$$eval('#data-toggles .data-toggle-row', rows => rows.map(row => row.dataset.layerId)), allowed);
   assert.equal(state.mode, 3, 'Cesium must initialize in 3D mode');
   assert.ok(state.canvas.every(value => value > 0) && !state.destroyed, 'Cesium canvas must be active');
   assert.equal(state.config?.viewer, false, 'Public config must enable operator controls');
   assert.equal(await globe.$eval('#snt-console-link', a => a.href), origin + '/console/');
-  assert.ok(state.links.includes(origin + '/scenario'), 'Scenario link must use the same origin');
-  assert.equal(state.advanceDisabled, false, 'The current demo stage must permit START/ADVANCE for this QA');
+  const scenarioLink = state.links.find(link => new URL(link).pathname === '/scenario');
+  assert.ok(scenarioLink, 'Globe must link to the separate scenario controller');
+  const scenarioURL = new URL(scenarioLink);
+  assert.equal(scenarioURL.origin, origin, 'Scenario link must use the same origin');
+  assert.equal(scenarioURL.searchParams.get('globe'), origin + '/?sentry=1', 'Scenario must return to this Globe console');
+  assert.equal(state.canControl, true, 'Operator access must reach the decision console');
+  await assertDecisionControls(globe);
   await bounded(globe.evaluate(() => new Promise(resolve => {
     const scene = window.__godsEyeView.viewer.scene;
     const remove = scene.postRender.addEventListener(() => { remove(); resolve(); });
     scene.requestRender();
   })), '3D render');
   await globe.screenshot({ path: output + '/globe.png' });
-  report.checks.push('3D render, three layers, same-origin links, enabled operator control');
+  report.checks.push('3D render, three visible layers, same-origin links, no Globe playback, decision access');
 
   for (const [name, pathname, required] of [
     ['console', '/console/', ['/assets/app.js', '/assets/app.css']],
-    ['scenario', '/scenario', ['/assets/scenario.js', '/assets/scenario.css']],
+    ['scenario', scenarioURL.pathname + scenarioURL.search, ['/assets/scenario.js', '/assets/scenario.css']],
   ]) {
     const { page, resources } = await openPage(name, pathname);
     await page.waitForFunction(() => document.querySelector('#link')?.classList.contains('live'));
@@ -200,7 +228,7 @@ try {
       assert.equal(new URL(asset).origin, origin, name + ' required assets must stay on public origin');
       assert.equal(resources.get(asset), 200, name + ' asset must return HTTP 200: ' + cleanURL(asset));
     }
-    if (name === 'scenario') assert.ok(await page.$eval('a[href="/console/"]', a => a.href === location.origin + '/console/'));
+    if (name === 'scenario') assert.equal(await page.$eval('[data-sentry-console-link]', a => a.href), origin + '/?sentry=1');
     await page.screenshot({ path: output + '/' + name + '.png' });
     report.checks.push(name + ': loaded, operator mode, JS/CSS HTTP 200');
   }
@@ -211,7 +239,7 @@ try {
   report.checks.push('page loads preserve session');
 
   if (values.exercise) {
-    // Original GEV pauses data updates in hidden tabs; exercise its visible console.
+    // Time advancement is explicit test setup for /scenario; the Globe only observes it.
     await globe.bringToFront();
     const baseline = await json(sessionPath);
     sameSession(baseline, before, 'Exercise entry');
@@ -236,12 +264,13 @@ try {
       sameSession(await json(sessionPath), result, 'After ' + command.command);
       expected = result;
       await globe.waitForFunction(({ id, elapsed, stage }) => {
-        const current = window.__godsEyeView.sentry.layer.getSnapshot().session;
+        const current = window.__godsEyeView.sentry.controller.getSnapshot().session;
         return current.session_id === id && current.elapsed_seconds === elapsed && current.stage === stage;
       }, { timeout, polling: 250 }, { id: result.session_id, elapsed: result.elapsed_seconds, stage: result.stage });
+      await assertDecisionControls(globe);
     }
     await globe.screenshot({ path: output + '/globe-reset.png' });
-    report.checks.push('public START, ADVANCE 30, RESET and UTC clock');
+    report.checks.push('scenario API setup: START, ADVANCE 30, RESET; Globe UTC synchronization');
   }
   assert.deepEqual(report.pageErrors, [], 'Pages must remain free of uncaught runtime errors');
   assert.deepEqual(essentialFailures, [], 'Required local scripts/styles must remain healthy');

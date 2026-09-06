@@ -7,6 +7,7 @@ import { LAYER_STATE_REGISTRY, LAYER_STATE_STORAGE_KEY, LayerStateCoordinator,
   createDefaultLayerState, serializeStoredLayerState } from '../data/layerState.js';
 import * as Cesium from 'cesium';
 import { createSentryLayer } from './layer.js';
+import { createSentryController } from './controller.js';
 import { isOwnedByOtherLayer, registerPickOwner, unregisterPickOwner } from '../data/pickRegistry.js';
 
 function makeViewer() {
@@ -27,7 +28,7 @@ function makeViewer() {
 function makeClient() {
   const calls = [];
   const session = {
-    session_id: 'RKTU-SIM-RUN-1', scenario_id: 'RKTU-SIM', elapsed_seconds: 30,
+    session_id: 'RKTU-SIM-RUN-1', scenario_id: 'RKTU-SIM', stage: 'MONITORING', elapsed_seconds: 30,
     simulation_time_utc: '2026-09-01T00:00:30Z', traffic_count: 1,
     traffic: [{ aircraft_id: 'SIM-01', aircraft_type: 'A320', category: 'AIRLINER',
       source: 'SYNTHETIC', x_nm: 1, y_nm: 2, altitude_ft: 9000,
@@ -212,19 +213,24 @@ test('integration startup preserves restored tracking and storage; user focus st
     },
   };
   let callbacks;
-  // Evaluate the real integration function; only its DOM/CSS panel dependency is stubbed.
+  // Exercise real session/map integration with isolated API data and a stubbed panel.
   const integrationSource = fs.readFileSync(new URL('./integration.js', import.meta.url), 'utf8')
     .replace(/^import .*;\r?\n/gm, '')
     .replace('export function initSentryIntegration', 'function initSentryIntegration');
   const initIntegration = vm.runInNewContext(integrationSource + '\ninitSentryIntegration;', {
+    createSentryController: () => {
+      const controller = createSentryController({ client: makeClient() });
+      return { ...controller, start() {} };
+    },
     createSentryPanel(options) {
       callbacks = options;
-      return { render() {}, setStatus() {}, setBusy() {} };
+      return { render() {}, setStatus() {}, setBusy() {}, destroy() {} };
     },
     URLSearchParams, location: { search: '?sentry=1' },
   });
+  let integration;
   try {
-    const integration = initIntegration({ dataManager: manager, styleManager, layer });
+    integration = initIntegration({ dataManager: manager, styleManager, layer });
     await integration.ready;
     assert.equal(manager.isEnabled('sentry-demo'), true);
     assert.equal(viewer.trackedEntity, trackedFlight, 'startup must preserve the restored aircraft tracker');
@@ -242,7 +248,31 @@ test('integration startup preserves restored tracking and storage; user focus st
     assert.equal(navigations, 2);
     assert.equal(viewer.trackedEntity.id, 'sentry:track:SIM-01');
   } finally {
+    integration?.destroy();
     coordinator.destroy();
     for (const id of ['sentry-demo', 'flights', 'military']) await manager.destroyLayer(id);
   }
+});
+
+
+test('hidden SENTRY map consumes shared session updates without owning simulation time', async () => {
+  const client = makeClient(), layer = createSentryLayer({ client });
+  const viewer = makeViewer();
+  let listener;
+  let state = { session: client.session, prediction: null, advisory: null, scenario: null,
+    geometry: null, stale: false, error: null };
+  layer.setSessionSource({ getSnapshot: () => state, subscribe(fn) { listener = fn; return () => { listener = null; }; } });
+  await layer.init(viewer); layer.enable(); await layer.update(viewer);
+  layer.disable();
+  state = { ...state, session: { ...client.session, session_id: 'SIM-RESET', elapsed_seconds: 50,
+    traffic: client.session.traffic.map(item => ({ ...item, altitude_ft: 12345 })) } };
+  listener(state);
+  assert.equal(layer.getSnapshot().session.session_id, 'SIM-RESET');
+  assert.equal(layer.getSnapshot().enabled, false);
+  assert.equal(viewer.dataSources.getByName('SENTRY DEMO')[0].show, false);
+  assert.equal(client.calls.length, 0, 'attached layer must not poll or advance the session itself');
+  layer.enable();
+  assert.equal(layer.getSubject('SIM-01').altitudeFt, 12345);
+  await assert.rejects(layer.command({ command: 'RESET' }), /시연 화면/);
+  layer.destroy(); assert.equal(listener, null);
 });

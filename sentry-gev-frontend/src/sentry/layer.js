@@ -12,6 +12,7 @@ const PREFIX = 'sentry:track:';
 
 export function createSentryLayer({ client = createSentryClient() } = {}) {
   let viewer, source, reference, removeSelection, removeTracking, removeContextListeners;
+  let sessionSource = null, removeSessionListener = null, lastGeometry = null, navigationError = null;
   let selectedId = null, followingId = null, enabled = false, lastError = null, lastUpdate = null;
   let session = null, scenario = null, advisory = null, prediction = null;
   let pending, epoch = 0;
@@ -20,10 +21,27 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
   const contextBridge = createSentryContextBridge();
   const listeners = new Set();
   const history = { sessionId: null, time: 0, tracks: new Map() };
-  const snapshot = () => ({ session, scenario, advisory, prediction, selectedId, followingId, enabled, error: lastError, stale: networkStale });
+  const snapshot = () => ({ session, scenario, advisory, prediction, selectedId, followingId, enabled, error: navigationError || lastError, stale: networkStale });
   const emit = () => { for (const listener of listeners) listener(snapshot()); };
   const ownTracked = () => Boolean(viewer?.trackedEntity && ownedEntities.has(viewer.trackedEntity));
 
+  function consumeSession(next) {
+    if (next.session) {
+      const state = next.session;
+      if (session && (session.session_id !== state.session_id || state.elapsed_seconds < session.elapsed_seconds)) {
+        clearSelection('reset-or-run-changed'); history.tracks.clear();
+      }
+      session = state; scenario = next.scenario; prediction = next.prediction; advisory = next.advisory;
+    }
+    networkStale = next.stale; lastError = next.error;
+    if (reference && next.geometry !== lastGeometry) {
+      reference.entities.removeAll();
+      if (next.geometry) drawGeometry(next.geometry);
+      lastGeometry = next.geometry;
+    }
+    if (!next.stale && next.session) lastUpdate = Date.now();
+    draw(); emit();
+  }
   function subjectFor(id) {
     if (!enabled || !id) return null;
     return describeSentrySubject(frameTracks.get(id), framePositions.get(id), session, networkStale);
@@ -48,12 +66,13 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
       // Exit its cockpit before a CustomDataSource entity can be adopted there.
       prepareCamera?.();
       if (globalThis.document?.body?.classList.contains('cockpit-mode')) {
-        lastError = 'MAP 화면으로 돌아온 뒤 SENTRY 항공기를 추적해 주세요.';
+        navigationError = 'MAP 화면으로 돌아온 뒤 SENTRY 항공기를 추적해 주세요.';
         emit(); return false;
       }
+      navigationError = null;
       return true;
     } catch {
-      lastError = '현재 카메라 모드를 종료한 뒤 다시 시도해 주세요.';
+      navigationError = '현재 카메라 모드를 종료한 뒤 다시 시도해 주세요.';
       emit(); return false;
     }
   }
@@ -208,8 +227,15 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
         () => { clearSelection('deselected'); draw(); emit(); },
       );
     },
+    setSessionSource(controller) {
+      removeSessionListener?.();
+      sessionSource = controller;
+      removeSessionListener = controller.subscribe(consumeSession);
+      consumeSession(controller.getSnapshot());
+    },
     enable() {
       enabled = true;
+      if (sessionSource) consumeSession(sessionSource.getSnapshot());
       registerPickOwner(layer.id, (id) => enabled && id.startsWith('sentry:'));
       if (source) source.show = reference.show = true;
       emit();
@@ -220,6 +246,12 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
       clearSelection('disabled'); emit();
     },
     async update(_viewer, { signal } = {}) {
+      if (sessionSource) {
+        consumeSession(sessionSource.getSnapshot());
+        // Map lifecycle can succeed while the independent session reconnects.
+        // Freshness remains visible in getStats and gates controller commands.
+        return true;
+      }
       if (pending) return pending;
       const currentEpoch = epoch;
       pending = (async () => {
@@ -313,6 +345,7 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
       return true;
     },
     async command(payload) {
+      if (sessionSource) throw new Error('판단 명령은 관제 콘솔에서 실행해 주세요. 시나리오 진행은 시연 화면을 사용합니다.');
       if (pending) await pending;
       const result = await client.command(payload);
       // An explicit RESET at t=0 can preserve both timestamp and callsign.
@@ -328,6 +361,7 @@ export function createSentryLayer({ client = createSentryClient() } = {}) {
       stale: networkStale, staleReason: networkStale ? 'network-error' : null, simulation: true }; },
     destroy() {
       epoch++; enabled = false; unregisterPickOwner(layer.id);
+      removeSessionListener?.(); sessionSource = null; lastGeometry = null;
       removeContextListeners?.(); clearSelection('destroyed');
       removeSelection?.(); removeTracking?.();
       if (source) viewer.dataSources.remove(source, true);
